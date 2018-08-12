@@ -179,7 +179,7 @@ ZeroTimePlanner::ZeroTimePlanner(
 
 void ZeroTimePlanner::InitMoveitOMPL()
 {
-    m_group.reset(new moveit::planning_interface::MoveGroup("right_arm"));
+    m_group.reset(new moveit::planning_interface::MoveGroupInterface("right_arm"));
     ROS_INFO("Planning path with OMPL");
 
     // Collision objects
@@ -219,11 +219,11 @@ bool ZeroTimePlanner::PlanPathToActualGoalOMPL(const RobotState& attractor, std:
 
     // plan
     ROS_INFO("Going to plan!");
-    moveit::planning_interface::MoveGroup::Plan my_plan;
-    bool success = m_group->plan(my_plan);
+    moveit::planning_interface::MoveGroupInterface::Plan my_plan;
+    auto ret = m_group->plan(my_plan);
     sleep(0.1);
 
-    if (!success) {
+    if (ret != moveit_msgs::MoveItErrorCodes::SUCCESS) {
         ROS_WARN("OMPL failed to plan");
         return false;
     }
