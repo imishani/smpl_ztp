@@ -29,7 +29,7 @@
 
 /// \author Andrew Dornbush, Fahad Islam
 
-#include <smpl/heuristic/workspace_dist_heuristic.h>
+#include <smpl_ztp/heuristic/workspace_dist_heuristic.h>
 
 // standard includes
 #include <cmath>
@@ -80,7 +80,7 @@ int WorkspaceDistHeuristic::GetGoalHeuristic(int state_id)
         return 0;
     }
     if (planningSpace()->goal().type != GoalType::JOINT_STATE_GOAL) {
-        SMPL_WARN_ONCE("Joint Distance Heuristic can only compute goal heuristics for Joint Goals");
+        SMPL_WARN_ONCE("Workspace Distance Heuristic can only compute goal heuristics for Joint Goals");
         return 0;
     }
 

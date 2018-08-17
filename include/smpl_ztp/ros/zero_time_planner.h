@@ -37,11 +37,11 @@
 
 // project includes
 #include <smpl/graph/manip_lattice.h>
-#include <smpl/graph/workspace_lattice_zero.h>
-
 #include <smpl/search/arastar.h>
-#include <smpl/search/arastar_zero.h>
 #include <smpl/types.h>
+
+#include <smpl_ztp/graph/workspace_lattice_zero.h>
+#include <smpl_ztp/search/arastar_zero.h>
 
 // OMPL +  Moveit
 #include <moveit/move_group_interface/move_group_interface.h>
@@ -60,8 +60,6 @@ class ZeroTimePlanner
 public:
 
 	ZeroTimePlanner(
-        const RobotState& start_state,
-        const GoalConstraint& goal,
 		ManipLattice* manip_space,
 		WorkspaceLatticeZero* task_space,
 		ARAStar* planner,
@@ -69,10 +67,16 @@ public:
 
 	~ZeroTimePlanner();
 
+    bool checkStartAndGoal(
+        const RobotState& full_start_state,
+        const GoalConstraint& goal);
+    void setStartAndGoal(
+        const RobotState& start_state,
+        const GoalConstraint& goal);
     void InitMoveitOMPL();
-    bool PlanPathToActualGoalOMPL(const RobotState& attractor, std::vector<RobotState>& path);
-    bool PlanPathToActualGoal(const RobotState& attractor, std::vector<RobotState>& path);
-    void PreProcess();
+    bool PlanPathFromStartToAttractorOMPL(const RobotState& attractor, std::vector<RobotState>& path);
+    bool PlanPathFromStartToAttractorSMPL(const RobotState& attractor, std::vector<RobotState>& path);
+    void PreProcess(const RobotState& full_start_state);
     void Query(std::vector<RobotState>& path);
 
 private:
@@ -80,8 +84,8 @@ private:
     ros::NodeHandle m_nh;
     std::string m_pp_planner;
 
-    const GoalConstraint m_goal;
-    const RobotState m_start_state;
+    RobotState m_start_state;
+    GoalConstraint m_goal;
 
     ManipLattice* m_manip_space;
     WorkspaceLatticeZero* m_task_space;

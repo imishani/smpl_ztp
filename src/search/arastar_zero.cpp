@@ -28,8 +28,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 /// \author Andrew Dornbush, Fahad Islam
-
-#include <smpl/search/arastar_zero.h>
+#define SMPL_CONSOLE_ROS
+#include <smpl_ztp/search/arastar_zero.h>
 
 #include <algorithm>
 #include <chrono>
@@ -749,8 +749,8 @@ int ARAStarZero::improvePath(
 // and INCONS list appropriately.
 void ARAStarZero::expand(SearchState* s)
 {
-    ROS_INFO("\nExpanding state: %d with h: %d", s->state_id, s->h);
-    getchar();
+    // ROS_INFO("\nExpanding state: %d with h: %d", s->state_id, s->h);
+    // getchar();
 
     m_succs.clear();
     m_costs.clear();

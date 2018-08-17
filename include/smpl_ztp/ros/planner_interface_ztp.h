@@ -60,7 +60,7 @@
 #include <smpl/graph/robot_planning_space.h>
 #include <smpl/heuristic/robot_heuristic.h>
 
-#include <smpl/ros/zero_time_planner.h>
+#include <smpl_ztp/ros/zero_time_planner.h>
 
 SBPL_CLASS_FORWARD(SBPLPlanner);
 

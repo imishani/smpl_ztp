@@ -52,7 +52,7 @@ namespace smpl {
 struct region
 {
     friend class boost::serialization::access;
-    WorkspaceLattice x;
+    RobotState start;
     unsigned int radius;
     WorkspaceState state;
     std::vector<RobotState> path;
@@ -60,6 +60,7 @@ struct region
     template <typename Archive>
     void serialize(Archive& ar, const unsigned int version)
     {
+        ar & start;
         ar & radius;
         ar & state;
         ar & path;
@@ -105,6 +106,10 @@ public:
     bool extractPath(
         const std::vector<int>& ids,
         std::vector<RobotState>& path) override;
+
+    // copy beto call this class's isGoal
+    int getStartStateID() const override;
+
     /// \name Required Public Functions from Extension
     ///@{
     Extension* getExtension(size_t class_code) override;
@@ -142,8 +147,8 @@ public:
 
     int FindRegionContainingState(const RobotState& joint_state);
 
-    bool IsRobotStateInStartRegion(const RobotState& joint_state);
-    bool IsWorkspaceStateInStartRegion(const WorkspaceState& workspace_state);
+    bool IsRobotStateInGoalRegion(const RobotState& joint_state);
+    bool IsWorkspaceStateInGoalRegion(const WorkspaceState& workspace_state);
 
     void UpdateSearchMode(int search_mode){m_search_mode = search_mode;};
 
@@ -161,6 +166,9 @@ public:
         std::vector<region>* regions_ptr,
         std::vector<region>* iregions_ptr);
     void VisualizePoint(int state_id, std::string type);
+    bool IsQueryCovered(
+        const RobotState& full_start_state,
+        const GoalConstraint& goal);
 private:
 
     // reachability

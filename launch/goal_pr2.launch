@@ -43,7 +43,8 @@
 
         <!-- 3. scenario -->
 
-        <rosparam command="load" file="$(find smpl_ztp)/config/ztp_params_pr2_right_arm.yaml"/>
     </node>
+
+    <rosparam command="load" file="$(find smpl_ztp)/config/ztp_params_pr2_right_arm.yaml"/>
 </launch>
 

@@ -91,7 +91,7 @@ target_link_libraries(call_planner_ztp PRIVATE ${Boost_LIBRARIES})
 ############################
 
 install(
-    DIRECTORY include/smpl/
+    DIRECTORY include/smpl_ztp/
     DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
 
 install(

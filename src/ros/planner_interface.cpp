@@ -30,7 +30,7 @@
 /// \author Benjamin Cohen
 /// \author Andrew Dornbush
 
-#include <smpl/ros/planner_interface_ztp.h>
+#include <smpl_ztp/ros/planner_interface_ztp.h>
 
 // standard includes
 #include <assert.h>
@@ -63,21 +63,21 @@
 #include <smpl/graph/manip_lattice_egraph.h>
 #include <smpl/graph/simple_workspace_lattice_action_space.h>
 #include <smpl/graph/workspace_lattice.h>
-#include <smpl/graph/workspace_lattice_zero.h>
+#include <smpl_ztp/graph/workspace_lattice_zero.h>
 
 #include <smpl/heuristic/bfs_heuristic.h>
 #include <smpl/heuristic/egraph_bfs_heuristic.h>
 #include <smpl/heuristic/euclid_dist_heuristic.h>
-#include <smpl/heuristic/workspace_dist_heuristic.h>
 #include <smpl/heuristic/multi_frame_bfs_heuristic.h>
 #include <smpl/heuristic/joint_dist_heuristic.h>
 #include <smpl/heuristic/generic_egraph_heuristic.h>
+#include <smpl_ztp/heuristic/workspace_dist_heuristic.h>
 
 #include <smpl/search/adaptive_planner.h>
 #include <smpl/search/arastar.h>
-#include <smpl/search/arastar_zero.h>
 #include <smpl/search/experience_graph_planner.h>
 #include <smpl/search/awastar.h>
+#include <smpl_ztp/search/arastar_zero.h>
 
 #include <smpl/stl/memory.h>
 
@@ -574,13 +574,14 @@ bool PlannerInterface::solveZero(
         ROS_ERROR("Both position and joint constraints empty!");
     }
 
+    ROS_INFO_NAMED(PI_LOGGER, "Initialized zero time planner");
     m_zero_planner.reset(new ZeroTimePlanner(
-        initial_positions,
-        goal,
         dynamic_cast<ManipLattice*>(manip_space.get()),
         dynamic_cast<WorkspaceLatticeZero*>(task_space.get()),
         dynamic_cast<ARAStar*>(planner1.get()),
         dynamic_cast<ARAStarZero*>(planner2.get())));
+
+    m_zero_planner->setStartAndGoal(initial_positions, goal);
 
     auto then = clock::now();
 
@@ -588,7 +589,7 @@ bool PlannerInterface::solveZero(
 
     if (!query) {
         ROS_INFO("Preprocessing Start Region");
-        m_zero_planner->PreProcess();
+        m_zero_planner->PreProcess(initial_positions);
     }
     else {
         int num_queries = 10;

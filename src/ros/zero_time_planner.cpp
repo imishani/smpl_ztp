@@ -40,7 +40,7 @@
 #include <tf_conversions/tf_eigen.h>
 
 // project includes
-#include <smpl/ros/zero_time_planner.h>
+#include <smpl_ztp/ros/zero_time_planner.h>
 
 namespace smpl {
 
@@ -158,23 +158,43 @@ auto GetCollisionObjects(
 }
 
 ZeroTimePlanner::ZeroTimePlanner(
-	const RobotState& start_state,
-	const GoalConstraint& goal,
 	ManipLattice* manip_space,
 	WorkspaceLatticeZero* task_space,
 	ARAStar* planner,
 	ARAStarZero* planner_zero)
 :
-    m_goal(goal),
-    m_start_state(start_state),
     m_manip_space(manip_space),
     m_task_space(task_space),
     m_planner(planner),
     m_planner_zero(planner_zero)
 {
-    if (!m_nh.getParam("call_planner/preprocess_planner", m_pp_planner)) {
+    if (!m_nh.getParam("preprocess_planner", m_pp_planner)) {
         ROS_ERROR("Could not find preprocessing planner name");
     }
+    if (m_regions.empty()) {
+        ReadRegions();
+        m_task_space->PassRegions(&m_regions, &m_iregions);
+    }
+}
+
+bool ZeroTimePlanner::checkStartAndGoal(
+    const RobotState& full_start_state,
+    const GoalConstraint& goal)
+{
+    // check if preprocessing covered this query
+    if (!m_task_space->IsQueryCovered(full_start_state, goal)) {
+        return false;
+    }
+
+    return true;
+}
+
+void ZeroTimePlanner::setStartAndGoal(
+    const RobotState& start_state,
+    const GoalConstraint& goal)
+{
+    m_start_state = start_state;
+    m_goal = goal;
 }
 
 void ZeroTimePlanner::InitMoveitOMPL()
@@ -198,23 +218,26 @@ void ZeroTimePlanner::InitMoveitOMPL()
     m_group->setPlannerId(m_pp_planner);
 }
 
-bool ZeroTimePlanner::PlanPathToActualGoalOMPL(const RobotState& attractor, std::vector<RobotState>& path)
+bool ZeroTimePlanner::PlanPathFromStartToAttractorOMPL(const RobotState& attractor, std::vector<RobotState>& path)
 {
     ROS_INFO("Planning path with OMPL");
+
+    // start -> actual start
+    // goal -> attractor
 
     ros::AsyncSpinner spinner(1);
     spinner.start();
 
     // set start and goal
-    geometry_msgs::Pose target_pose;
-    tf::poseEigenToMsg(m_goal.pose, target_pose);
-    m_group->setPoseTarget(target_pose);
-    // robot_state::RobotState goal_state(*m_group->getCurrentState());
-    // goal_state.setJointGroupPositions("right_arm", attractor);
-    // m_group->setJointValueTarget(goal_state);
+    // geometry_msgs::Pose target_pose;
+    // tf::poseEigenToMsg(m_goal.pose, target_pose);
+    // m_group->setPoseTarget(target_pose);
+    robot_state::RobotState goal_state(*m_group->getCurrentState());
+    goal_state.setJointGroupPositions("right_arm", attractor);
+    m_group->setJointValueTarget(goal_state);
 
     robot_state::RobotState start_state(*m_group->getCurrentState());
-    start_state.setJointGroupPositions("right_arm", attractor);
+    start_state.setJointGroupPositions("right_arm", m_start_state);
     m_group->setStartState(start_state);
 
     // plan
@@ -242,9 +265,14 @@ bool ZeroTimePlanner::PlanPathToActualGoalOMPL(const RobotState& attractor, std:
     return true;
 }
 
-bool ZeroTimePlanner::PlanPathToActualGoal(const RobotState& attractor, std::vector<RobotState>& path)
+bool ZeroTimePlanner::PlanPathFromStartToAttractorSMPL(const RobotState& attractor, std::vector<RobotState>& path)
 {
-    m_manip_space->setStart(attractor);
+    ROS_INFO("Planning path with SMPL");
+
+    // start -> actual start
+    // goal -> attractor
+
+    m_manip_space->setStart(m_start_state);
     const int start_id_manip_space = m_manip_space->getStartStateID();
     if (start_id_manip_space == -1) {
         ROS_ERROR("No start state has been set in manip lattice");
@@ -256,7 +284,12 @@ bool ZeroTimePlanner::PlanPathToActualGoal(const RobotState& attractor, std::vec
         return false;
     }
 
-    m_manip_space->setGoal(m_goal);
+    GoalConstraint goal;
+    goal.type = GoalType::JOINT_STATE_GOAL;
+    goal.angles = attractor;
+    goal.angle_tolerances.resize(attractor.size());
+    std::fill(goal.angle_tolerances.begin(),goal.angle_tolerances.end(), smpl::angles::to_radians(1.0));
+    m_manip_space->setGoal(goal);
 
     // set sbpl planner goal
     const int goal_id = m_manip_space->getGoalStateID();
@@ -315,12 +348,13 @@ bool ZeroTimePlanner::PlanPathToActualGoal(const RobotState& attractor, std::vec
     return true;
 }
 
-void ZeroTimePlanner::PreProcess()
+void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
 {
+    m_regions.clear();
     if (m_pp_planner != "ARAStar")
         InitMoveitOMPL();
 
-    unsigned int radius_max = 1000000;
+    unsigned int radius_max = 1000;
     m_task_space->PassRegions(&m_regions, &m_iregions);
 
     // 1. SAMPLE ATTRACTOR
@@ -346,17 +380,17 @@ void ZeroTimePlanner::PreProcess()
                 m_bad_attractors.find(attractor) == m_bad_attractors.end()) {
             	m_task_space->VisualizePoint(sampled_state_id, "attractor");
     	        std::vector<RobotState> path;
-    #if 0
+    #if 1
                 // 2. PLAN PATH TO ACTUAL GOAL
                 RobotState attractor_joint_state;
                 m_task_space->GetJointState(attractor_state_id, attractor_joint_state);
 
                 bool ret;
                 if (m_pp_planner != "ARAStar") {
-                    PlanPathToActualGoalOMPL(attractor_joint_state, path);
+                    ret = PlanPathFromStartToAttractorOMPL(attractor_joint_state, path);
                 }
                 else {
-                    PlanPathToActualGoal(attractor_joint_state, path);
+                    ret = PlanPathFromStartToAttractorSMPL(attractor_joint_state, path);
                 }
 
                 if (!ret) {
@@ -376,6 +410,7 @@ void ZeroTimePlanner::PreProcess()
 
     	        // 4. ADD REGION
     	        region r;
+                r.start = full_start_state;
     	        r.radius = radius;
     	        r.state = attractor;
     	        r.path = path;
@@ -399,9 +434,9 @@ void ZeroTimePlanner::PreProcess()
                 std::copy( invalid_states.begin(), invalid_states.end(), std::inserter( m_invalid_front, m_invalid_front.end() ) );
 
                 ROS_INFO("VALID:");
-                ROS_INFO("total frontier: %zu, uncovered: %d (valid: %zu, invalid: %zu)",
-                    open.size(), (int)(valid_states.size()) + (int)(invalid_states.size()), valid_states.size(), invalid_states.size());
-                ROS_INFO("overall uncovered! valid: %zu invalid: %zu\n", m_valid_front.size(), m_invalid_front.size());
+                ROS_INFO("Total frontier: %zu, (valid: %zu, invalid: %zu)",
+                    open.size(), valid_states.size(), invalid_states.size());
+                ROS_INFO("Overall! valid: %zu invalid: %zu\n", m_valid_front.size(), m_invalid_front.size());
                 // getchar();
     	        // free task space
     	        m_task_space->ClearStates();
@@ -440,9 +475,9 @@ void ZeroTimePlanner::PreProcess()
                 std::copy( valid_states.begin(), valid_states.end(), std::inserter( m_valid_front, m_valid_front.end() ) );
                 std::copy( invalid_states.begin(), invalid_states.end(), std::inserter( m_invalid_front, m_invalid_front.end() ) );
                 ROS_INFO("INVALID:");
-                ROS_INFO("total frontier: %zu, uncovered: %d (valid: %zu, invalid: %zu)",
-                    open.size(), (int)(valid_states.size()) + (int)(invalid_states.size()), valid_states.size(), invalid_states.size());
-                ROS_INFO("overall uncovered! valid: %zu invalid: %zu\n", m_valid_front.size(), m_invalid_front.size());
+                ROS_INFO("Total frontier: %zu, (valid: %zu, invalid: %zu)",
+                    open.size(), valid_states.size(), invalid_states.size());
+                ROS_INFO("Overall! valid: %zu invalid: %zu\n", m_valid_front.size(), m_invalid_front.size());
                 // getchar();
 
                 if (m_valid_front.size() > 0) {
@@ -462,21 +497,19 @@ void ZeroTimePlanner::PreProcess()
 
 void ZeroTimePlanner::Query(std::vector<RobotState>& path)
 {
-	if (m_regions.empty()) {
-        ReadRegions();
-	    m_task_space->PassRegions(&m_regions, &m_iregions);
-	}
-
     m_task_space->UpdateSearchMode(QUERY);
+
+    // start -> actual goal
+    // goal -> attractor
 
     RobotState start_state;
 #if 0
-    start_state = m_start_state;
+    start_state = m_goal.angles;
 #else	// select random start
     while (!m_task_space->SampleRobotState(start_state));
 #endif
 
-    if (!m_task_space->IsRobotStateInStartRegion(start_state)) {
+    if (!m_task_space->IsRobotStateInGoalRegion(start_state)) {
     	ROS_ERROR("Query state outside start region");
     	return;
     }
@@ -539,28 +572,29 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
     }
 
     // if a path is returned, then pack it into msg form
-    std::vector<RobotState> path_to_attractor;
+    std::vector<RobotState> ztp_path;
     if (b_ret && (solution_state_ids.size() > 0)) {
-        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "Planning succeeded");
-        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Num Expansions (Initial): %d", m_planner_zero->get_n_expands_init_solution());
-        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Num Expansions (Final): %d", m_planner_zero->get_n_expands());
-        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Epsilon (Initial): %0.3f", m_planner_zero->get_initial_eps());
-        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Epsilon (Final): %0.3f", m_planner_zero->get_solution_eps());
-        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Time (Initial): %0.3f", m_planner_zero->get_initial_eps_planning_time());
-        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Time (Final): %0.3f", m_planner_zero->get_final_eps_planning_time());
-        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Path Length (states): %zu", solution_state_ids.size());
-        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Solution Cost: %d", m_sol_cost);
+        ROS_INFO_NAMED(PI_LOGGER_ZERO, "Planning succeeded");
+        ROS_INFO_NAMED(PI_LOGGER_ZERO, "  Num Expansions (Initial): %d", m_planner_zero->get_n_expands_init_solution());
+        ROS_INFO_NAMED(PI_LOGGER_ZERO, "  Num Expansions (Final): %d", m_planner_zero->get_n_expands());
+        ROS_INFO_NAMED(PI_LOGGER_ZERO, "  Epsilon (Initial): %0.3f", m_planner_zero->get_initial_eps());
+        ROS_INFO_NAMED(PI_LOGGER_ZERO, "  Epsilon (Final): %0.3f", m_planner_zero->get_solution_eps());
+        ROS_INFO_NAMED(PI_LOGGER_ZERO, "  Time (Initial): %0.3f", m_planner_zero->get_initial_eps_planning_time());
+        ROS_INFO_NAMED(PI_LOGGER_ZERO, "  Time (Final): %0.3f", m_planner_zero->get_final_eps_planning_time());
+        ROS_INFO_NAMED(PI_LOGGER_ZERO, "  Path Length (states): %zu", solution_state_ids.size());
+        ROS_INFO_NAMED(PI_LOGGER_ZERO, "  Solution Cost: %d", m_sol_cost);
 
-        if (!m_task_space->extractPath(solution_state_ids, path_to_attractor)) {
+        if (!m_task_space->extractPath(solution_state_ids, ztp_path)) {
             ROS_ERROR("Failed to convert state id path to joint variable path");
             return;
         }
 
-        path = path_to_attractor;
+        std::reverse(ztp_path.begin(), ztp_path.end());   // path from to attractor to goal
+        path = m_regions[reg_idx].path;
         path.insert(
             path.end(),
-            m_regions[reg_idx].path.begin(),
-            m_regions[reg_idx].path.end());
+            ztp_path.begin(),
+            ztp_path.end());
     }
 
     m_task_space->ClearStates();
@@ -586,10 +620,15 @@ void ZeroTimePlanner::WriteRegions()
 void ZeroTimePlanner::ReadRegions()
 {
 	ROS_INFO("Reading regions from file");
-	boost::filesystem::path myFile = boost::filesystem::current_path() / "myfile.dat";
-    boost::filesystem::ifstream ifs(myFile/*.native()*/);
-    boost::archive::text_iarchive ta(ifs);
-    ta >> m_regions;
+    try {
+        boost::filesystem::path myFile = boost::filesystem::current_path() / "myfile.dat";
+        boost::filesystem::ifstream ifs(myFile/*.native()*/);
+        boost::archive::text_iarchive ta(ifs);
+        ta >> m_regions;
+    }
+    catch (...) {
+        ROS_WARN("Unable to read preprocessed file");
+    }
 }
 
 ZeroTimePlanner::~ZeroTimePlanner()

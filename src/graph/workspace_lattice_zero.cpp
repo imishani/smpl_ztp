@@ -30,8 +30,8 @@
 /// \author Benjamin Cohen
 /// \author Andrew Dornbush
 /// \author Fahad Islam
-
-#include <smpl/graph/workspace_lattice_zero.h>
+#define SMPL_CONSOLE_ROS
+#include <smpl_ztp/graph/workspace_lattice_zero.h>
 
 // system includes
 #include <chrono>
@@ -92,7 +92,7 @@ bool WorkspaceLatticeZero::init(
 bool WorkspaceLatticeZero::readGoalRegion()
 {
     XmlRpc::XmlRpcValue xlist;
-    if (!m_nh.getParam("call_planner/start_region/min_limits", xlist)) {
+    if (!m_nh.getParam("start_region/min_limits", xlist)) {
         ROS_ERROR("Could not find start region min limits");
         return false;
     }
@@ -106,7 +106,7 @@ bool WorkspaceLatticeZero::readGoalRegion()
         m_min_ws_limits.push_back(xlist[i]);
     }
 
-    if (!m_nh.getParam("call_planner/start_region/max_limits", xlist)) {
+    if (!m_nh.getParam("start_region/max_limits", xlist)) {
         ROS_ERROR("Could not find start region max limits");
         return false;
     }
@@ -393,7 +393,7 @@ int WorkspaceLatticeZero::FindRegionContainingState(const RobotState& joint_stat
         RobotHeuristic* h = heuristic(0);
         SMPL_DEBUG_STREAM_NAMED("graph.expands", "  attractor: " << r.state);
         int dsum = h->GetFromToHeuristic(query_state_id, attractor_state_id);
-        printf("dsum %d radius %u\n", dsum, r.radius);
+        // printf("dsum %d radius %u\n", dsum, r.radius);
         if (dsum < r.radius || dsum == 0) {
             // ROS_INFO("Covered try %d", count);
             goal_state = r.state;
@@ -404,8 +404,8 @@ int WorkspaceLatticeZero::FindRegionContainingState(const RobotState& joint_stat
     }
 
     if (covered) {
-        SMPL_INFO_NAMED("graph", "Attractor State of Containing Region");
-        SMPL_INFO_STREAM_NAMED("graph.expands", "    workspace state  : " << goal_state);
+        SMPL_DEBUG_NAMED("graph", "Attractor State of Containing Region");
+        SMPL_DEBUG_STREAM_NAMED("graph.expands", "    workspace state  : " << goal_state);
         return reg_idx;
     }
     else {
@@ -415,22 +415,23 @@ int WorkspaceLatticeZero::FindRegionContainingState(const RobotState& joint_stat
 }
 
 
-bool WorkspaceLatticeZero::IsRobotStateInStartRegion(const RobotState& state)
+bool WorkspaceLatticeZero::IsRobotStateInGoalRegion(const RobotState& state)
 {
     WorkspaceState workspace_state;
     stateRobotToWorkspace(state, workspace_state);
+    // normalize_euler_zyx(&workspace_state[3]);
     WorkspaceCoord coord;
     stateWorkspaceToCoord(workspace_state, coord);
     stateCoordToWorkspace(coord, workspace_state);
-    return IsWorkspaceStateInStartRegion(workspace_state);
+    return IsWorkspaceStateInGoalRegion(workspace_state);
 }
 
-bool WorkspaceLatticeZero::IsWorkspaceStateInStartRegion(const WorkspaceState& state)
+bool WorkspaceLatticeZero::IsWorkspaceStateInGoalRegion(const WorkspaceState& state)
 {
     double eps = 0.0001;
     for (int i = 0; i < state.size(); ++i) {
         if (state[i] < m_min_ws_limits[i] - eps || state[i] > m_max_ws_limits[i] + eps) {
-            SMPL_DEBUG_NAMED("graph.expands", "         -> violates start region limits %d %f", i, m_min_ws_limits[i]);
+            SMPL_DEBUG_NAMED("graph", "violates start region limits: %d, min limit: %f, max limit: %f", i, m_min_ws_limits[i], m_max_ws_limits[i]);
             return false;
         }
     }
@@ -583,6 +584,41 @@ void WorkspaceLatticeZero::VisualizePoint(int state_id, std::string type)
 #endif
 }
 
+bool WorkspaceLatticeZero::IsQueryCovered(
+    const RobotState& full_start_state,
+    const GoalConstraint& goal)
+{
+
+    SMPL_INFO_STREAM_NAMED("graph.expands", "    state query_start  : " << full_start_state);
+    SMPL_INFO_STREAM_NAMED("graph.expands", "    state regions_start: " << (*m_regions_ptr).front().start);
+
+    double eps = 0.1;
+    for (size_t i = 0; i < full_start_state.size(); ++i) {
+        if (fabs(full_start_state[i] - (*m_regions_ptr).front().start[i]) > eps) {
+            ROS_WARN("ZTP: start state is not preprocessed, index %d is different", i);
+            return false;
+        }
+    }
+
+    // WorkspaceCoord query_start_coord;
+    // WorkspaceCoord regions_start_coord;
+    // stateRobotToCoord(full_start_state, query_start_coord);
+    // stateRobotToCoord((*m_regions_ptr).front().start, regions_start_coord);
+    // if (query_start_coord != regions_start_coord) {
+    //     SMPL_INFO_STREAM_NAMED("graph.expands", "    query_start_coord  : " << query_start_coord);
+    //     SMPL_INFO_STREAM_NAMED("graph.expands", "    regions_start_coord: " << regions_start_coord);
+    //     ROS_WARN("ZTP: start state is not preprocessed");
+    //     return false;
+    // }
+
+    if (!IsRobotStateInGoalRegion(goal.angles)) {
+        ROS_WARN("ZTP: goal state is not covered in goal region");
+        return false;
+    }
+
+    return true;
+}
+
 bool WorkspaceLatticeZero::setGoal(const GoalConstraint& goal)
 {
     m_goal = goal;
@@ -610,6 +646,18 @@ bool WorkspaceLatticeZero::setGoal(const GoalConstraint& goal)
     return true;
 }
 
+int WorkspaceLatticeZero::getStartStateID() const
+{
+    if (m_start_state_id >= 0 && m_goal_state_id >= 0) {
+        WorkspaceLatticeState* start_state = getState(m_start_state_id);
+        WorkspaceState cont_state;
+        stateCoordToWorkspace(start_state->coord, cont_state);
+        if (isGoal(cont_state)) {
+            return m_goal_state_id;
+        }
+    }
+    return m_start_state_id;
+}
 
 bool WorkspaceLatticeZero::extractPath(
     const std::vector<int>& ids,
@@ -929,7 +977,7 @@ bool WorkspaceLatticeZero::checkActionPreprocessing(
     end_state = action[action.size() - 1];
 
     SMPL_DEBUG_STREAM_NAMED("graph.expands", "  end state: " << end_state);
-    if (!IsWorkspaceStateInStartRegion(end_state)) {
+    if (!IsWorkspaceStateInGoalRegion(end_state)) {
         violation_mask |= 0x00000001;
     }
 

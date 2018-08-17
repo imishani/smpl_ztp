@@ -44,9 +44,9 @@
 
 // project includes
 #include <smpl/graph/manip_lattice.h>
-#include <smpl/graph/workspace_lattice_zero.h>
 #include <smpl/heap/intrusive_heap.h>
 #include <smpl/time.h>
+#include <smpl_ztp/graph/workspace_lattice_zero.h>
 
 namespace smpl {
 

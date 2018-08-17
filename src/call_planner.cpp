@@ -51,9 +51,9 @@
 #include <smpl/debug/visualizer_ros.h>
 #include <smpl/distance_map/edge_euclid_distance_map.h>
 #include <smpl/distance_map/euclid_distance_map.h>
-#include <smpl/ros/planner_interface_ztp.h>
 #include <smpl/ros/propagation_distance_field.h>
 #include <smpl_moveit_interface/planner/moveit_robot_model.h>
+#include <smpl_ztp/ros/planner_interface_ztp.h>
 #include <visualization_msgs/MarkerArray.h>
 
 #include "collision_space_scene.h"
