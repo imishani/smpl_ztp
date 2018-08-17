@@ -93,7 +93,7 @@ bool WorkspaceLatticeZero::readGoalRegion()
 {
     XmlRpc::XmlRpcValue xlist;
     if (!m_nh.getParam("start_region/min_limits", xlist)) {
-        ROS_ERROR("Could not find start region min limits");
+        ROS_WARN("Could not find start region min limits");
         return false;
     }
 
@@ -107,7 +107,7 @@ bool WorkspaceLatticeZero::readGoalRegion()
     }
 
     if (!m_nh.getParam("start_region/max_limits", xlist)) {
-        ROS_ERROR("Could not find start region max limits");
+        ROS_WARN("Could not find start region max limits");
         return false;
     }
 
