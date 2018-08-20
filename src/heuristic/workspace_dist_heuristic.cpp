@@ -131,8 +131,6 @@ double WorkspaceDistHeuristic::computeJointDistance(
     const RobotState& s,
     const RobotState& t) const
 {
-    // printf("%f %f %f\n", s[3], s[4], s[5]);
-    // printf("%f %f %f\n", t[3], t[4], t[5]);
     double dsum = 0.0;
     for (size_t i = 0; i < s.size(); ++i) {
         double dj = (s[i] - t[i]);

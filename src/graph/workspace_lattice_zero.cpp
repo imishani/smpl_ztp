@@ -212,7 +212,7 @@ bool WorkspaceLatticeZero::IsStateToStateValid(int from_state_id, int to_state_i
 
     assert(from_entry->state == robot()->jointVariableCount());
 
-#ifdef tie_breaking
+// #ifdef tie_breaking
     if (to_entry->state.empty()) {
         WorkspaceState workspace_state;
         stateCoordToWorkspace(to_entry->coord, workspace_state);
@@ -221,7 +221,7 @@ bool WorkspaceLatticeZero::IsStateToStateValid(int from_state_id, int to_state_i
             return false;
         }
     }
-#endif
+// #endif
 
     if (!collisionChecker()->isStateToStateValid(from_entry->state, to_entry->state)) {
         return false;
@@ -588,11 +588,10 @@ bool WorkspaceLatticeZero::IsQueryCovered(
     const RobotState& full_start_state,
     const GoalConstraint& goal)
 {
+    SMPL_DEBUG_STREAM_NAMED("graph.expands", "    query start state  : " << full_start_state);
+    SMPL_DEBUG_STREAM_NAMED("graph.expands", "    regions start state: " << (*m_regions_ptr).front().start);
 
-    SMPL_INFO_STREAM_NAMED("graph.expands", "    state query_start  : " << full_start_state);
-    SMPL_INFO_STREAM_NAMED("graph.expands", "    state regions_start: " << (*m_regions_ptr).front().start);
-
-    double eps = 0.1;
+    double eps = 0.25;
     for (size_t i = 0; i < full_start_state.size(); ++i) {
         if (fabs(full_start_state[i] - (*m_regions_ptr).front().start[i]) > eps) {
             ROS_WARN("ZTP: start state is not preprocessed, index %d is different", i);
@@ -600,19 +599,18 @@ bool WorkspaceLatticeZero::IsQueryCovered(
         }
     }
 
-    // WorkspaceCoord query_start_coord;
-    // WorkspaceCoord regions_start_coord;
-    // stateRobotToCoord(full_start_state, query_start_coord);
-    // stateRobotToCoord((*m_regions_ptr).front().start, regions_start_coord);
-    // if (query_start_coord != regions_start_coord) {
-    //     SMPL_INFO_STREAM_NAMED("graph.expands", "    query_start_coord  : " << query_start_coord);
-    //     SMPL_INFO_STREAM_NAMED("graph.expands", "    regions_start_coord: " << regions_start_coord);
-    //     ROS_WARN("ZTP: start state is not preprocessed");
-    //     return false;
-    // }
-
     if (!IsRobotStateInGoalRegion(goal.angles)) {
         ROS_WARN("ZTP: goal state is not covered in goal region");
+        return false;
+    }
+
+    // check if the discrete goal is in collision
+    WorkspaceState ws_state;
+    RobotState discrete_state;
+    stateRobotToWorkspace(goal.angles, ws_state);
+    stateWorkspaceToRobot(ws_state, discrete_state);
+    if (!collisionChecker()->isStateValid(discrete_state, true)) {
+        ROS_WARN("The discretized goal state in collision");
         return false;
     }
 

@@ -67,19 +67,20 @@ public:
 
 	~ZeroTimePlanner();
 
-    bool checkStartAndGoal(
+    bool isQueryCovered(
         const RobotState& full_start_state,
         const GoalConstraint& goal);
     void setStartAndGoal(
         const RobotState& start_state,
         const GoalConstraint& goal);
-    void InitMoveitOMPL();
-    bool PlanPathFromStartToAttractorOMPL(const RobotState& attractor, std::vector<RobotState>& path);
-    bool PlanPathFromStartToAttractorSMPL(const RobotState& attractor, std::vector<RobotState>& path);
     void PreProcess(const RobotState& full_start_state);
     void Query(std::vector<RobotState>& path);
 
 private:
+
+    void InitMoveitOMPL();
+    bool PlanPathFromStartToAttractorOMPL(const RobotState& attractor, std::vector<RobotState>& path);
+    bool PlanPathFromStartToAttractorSMPL(const RobotState& attractor, std::vector<RobotState>& path);
 
     ros::NodeHandle m_nh;
     std::string m_pp_planner;

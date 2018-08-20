@@ -177,7 +177,7 @@ ZeroTimePlanner::ZeroTimePlanner(
     }
 }
 
-bool ZeroTimePlanner::checkStartAndGoal(
+bool ZeroTimePlanner::isQueryCovered(
     const RobotState& full_start_state,
     const GoalConstraint& goal)
 {
@@ -503,7 +503,7 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
     // goal -> attractor
 
     RobotState start_state;
-#if 0
+#if 1
     start_state = m_goal.angles;
 #else	// select random start
     while (!m_task_space->SampleRobotState(start_state));
@@ -574,15 +574,15 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
     // if a path is returned, then pack it into msg form
     std::vector<RobotState> ztp_path;
     if (b_ret && (solution_state_ids.size() > 0)) {
-        ROS_INFO_NAMED(PI_LOGGER_ZERO, "Planning succeeded");
-        ROS_INFO_NAMED(PI_LOGGER_ZERO, "  Num Expansions (Initial): %d", m_planner_zero->get_n_expands_init_solution());
-        ROS_INFO_NAMED(PI_LOGGER_ZERO, "  Num Expansions (Final): %d", m_planner_zero->get_n_expands());
-        ROS_INFO_NAMED(PI_LOGGER_ZERO, "  Epsilon (Initial): %0.3f", m_planner_zero->get_initial_eps());
-        ROS_INFO_NAMED(PI_LOGGER_ZERO, "  Epsilon (Final): %0.3f", m_planner_zero->get_solution_eps());
-        ROS_INFO_NAMED(PI_LOGGER_ZERO, "  Time (Initial): %0.3f", m_planner_zero->get_initial_eps_planning_time());
-        ROS_INFO_NAMED(PI_LOGGER_ZERO, "  Time (Final): %0.3f", m_planner_zero->get_final_eps_planning_time());
-        ROS_INFO_NAMED(PI_LOGGER_ZERO, "  Path Length (states): %zu", solution_state_ids.size());
-        ROS_INFO_NAMED(PI_LOGGER_ZERO, "  Solution Cost: %d", m_sol_cost);
+        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "Planning succeeded");
+        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Num Expansions (Initial): %d", m_planner_zero->get_n_expands_init_solution());
+        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Num Expansions (Final): %d", m_planner_zero->get_n_expands());
+        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Epsilon (Initial): %0.3f", m_planner_zero->get_initial_eps());
+        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Epsilon (Final): %0.3f", m_planner_zero->get_solution_eps());
+        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Time (Initial): %0.3f", m_planner_zero->get_initial_eps_planning_time());
+        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Time (Final): %0.3f", m_planner_zero->get_final_eps_planning_time());
+        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Path Length (states): %zu", solution_state_ids.size());
+        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Solution Cost: %d", m_sol_cost);
 
         if (!m_task_space->extractPath(solution_state_ids, ztp_path)) {
             ROS_ERROR("Failed to convert state id path to joint variable path");
@@ -595,6 +595,9 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
             path.end(),
             ztp_path.begin(),
             ztp_path.end());
+
+        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "Preprocessed path length: %zu", m_regions[reg_idx].path.size());
+        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "Query path length:        %zu", ztp_path.size());
     }
 
     m_task_space->ClearStates();
