@@ -44,7 +44,7 @@
 #include <smpl_ztp/search/arastar_zero.h>
 
 // OMPL +  Moveit
-#include <moveit/move_group_interface/move_group_interface.h>
+#include <moveit/move_group_interface/move_group.h>
 #include <moveit/planning_scene_interface/planning_scene_interface.h>
 
 #include <moveit_msgs/DisplayRobotState.h>
@@ -104,7 +104,7 @@ private:
     std::vector<region> m_regions;
     std::vector<region> m_iregions;
 
-    std::unique_ptr<moveit::planning_interface::MoveGroupInterface> m_group;
+    std::unique_ptr<moveit::planning_interface::MoveGroup> m_group;
     moveit::planning_interface::PlanningSceneInterface m_planning_scene_interface;
 
     void WriteRegions();
