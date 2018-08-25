@@ -121,9 +121,6 @@ bool WorkspaceLatticeZero::readGoalRegion()
     }
 
     // normalize [-pi,pi]x[-pi/2,pi/2]x[-pi,pi]
-    normalize_euler_zyx(&m_min_ws_limits[3]);
-    normalize_euler_zyx(&m_max_ws_limits[3]);
-
     // center of cell
     WorkspaceCoord limits_coord(6 + freeAngleCount());
     stateWorkspaceToCoord(m_min_ws_limits, limits_coord);
@@ -131,6 +128,17 @@ bool WorkspaceLatticeZero::readGoalRegion()
 
     stateWorkspaceToCoord(m_max_ws_limits, limits_coord);
     stateCoordToWorkspace(limits_coord, m_max_ws_limits);
+
+    // printf("min %f max %f\n", m_min_ws_limits[3], m_max_ws_limits[3]);
+    // printf("min %f max %f\n", m_min_ws_limits[4], m_max_ws_limits[4]);
+    // printf("min %f max %f\n", m_min_ws_limits[5], m_max_ws_limits[5]);
+
+    for (size_t i = 0; i < m_min_ws_limits.size(); ++i) {
+        if (m_min_ws_limits[i] > m_max_ws_limits[i]) {
+            ROS_ERROR("Min limit greater than max limit at index %zu", i);
+            return false;
+        }
+    }
 
     m_distribution.resize(6 + freeAngleCount());
 
@@ -344,7 +352,7 @@ bool WorkspaceLatticeZero::SampleRobotState(RobotState& joint_state)
     }
 
     // normalize and project to center
-    normalize_euler_zyx(&workspace_state[3]);
+    // normalize_euler_zyx(&workspace_state[3]);
     WorkspaceCoord workspace_coord;
     stateWorkspaceToCoord(workspace_state, workspace_coord);
     stateCoordToWorkspace(workspace_coord, workspace_state);
@@ -691,6 +699,13 @@ bool WorkspaceLatticeZero::extractPath(
     }
 
     WorkspaceLatticeState* start_entry = getState(ids[0]);
+    WorkspaceState workspace_state;
+    stateCoordToWorkspace(start_entry->coord, workspace_state);
+    if (start_entry->state.empty()) {
+        if (!stateWorkspaceToRobot(workspace_state, start_entry->state)) {
+            ROS_ERROR("ZTP query: failed to find ik for state");
+        }
+    }
     path.push_back(start_entry->state);
 
     for (size_t i = 1; i < ids.size(); ++i) {
@@ -743,9 +758,23 @@ bool WorkspaceLatticeZero::extractPath(
                 return false;
             }
 
+            WorkspaceState workspace_state;
+            stateCoordToWorkspace(best_goal_entry->coord, workspace_state);
+            if (best_goal_entry->state.empty()) {
+                if (!stateWorkspaceToRobot(workspace_state, best_goal_entry->state)) {
+                    ROS_ERROR("ZTP query: failed to find ik for state");
+                }
+            }
             path.push_back(best_goal_entry->state);
         } else {
             WorkspaceLatticeState* state_entry = getState(curr_id);
+            WorkspaceState workspace_state;
+            stateCoordToWorkspace(state_entry->coord, workspace_state);
+            if (state_entry->state.empty()) {
+                if (!stateWorkspaceToRobot(workspace_state, state_entry->state)) {
+                    ROS_ERROR("ZTP query: failed to find ik for state");
+                }
+            }
             path.push_back(state_entry->state);
         }
     }
@@ -853,11 +882,11 @@ void WorkspaceLatticeZero::GetSuccs(
                 continue;
             }
         }
-        else {
-            if (!checkAction(parent_entry->state, action, &final_rstate)) {
-                continue;
-            }
-        }
+        // else {
+        //     if (!checkAction(parent_entry->state, action, &final_rstate)) {
+        //         continue;
+        //     }
+        // }
 
         const WorkspaceState& final_state = action.back();
         WorkspaceCoord succ_coord;
@@ -953,7 +982,7 @@ bool WorkspaceLatticeZero::isGoal(const WorkspaceState& state) const
         return false;
     }   break;
     case GoalType::XYZ_GOAL: {
-        SMPL_WARN_ONCE("WorkspaceLattice xyz goals not implemented");
+        SMPL_WARN_ONCE("WorkspaceLatticeZero xyz goals not implemented");
         return false;
     }   break;
     default:

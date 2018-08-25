@@ -24,7 +24,7 @@
             kinematics_frame:
                 torso_lift_link
             chain_tip_link:
-                r_gripper_palm_link
+                r_wrist_roll_link
         </rosparam>
 
         <!-- collision checking -->

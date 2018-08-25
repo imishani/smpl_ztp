@@ -3,11 +3,11 @@ start_region:
     [
      0.37
     ,-0.25
-    ,0.65
+    ,0.62
 
-    ,3.14159265359
     ,0.0
-    ,1.57079632679
+    ,0.0
+    ,0.0
 
     ,-2.135398
     #,-0.0872665
@@ -16,16 +16,16 @@ start_region:
     [
      0.63
     ,0.05
-    ,0.65
+    ,0.62
 
-    ,3.14159265359
     ,0.0
-    ,1.57079632679
+    ,0.0
+    ,3.14159265359
 
     ,0.564602
     #,-0.0872665
     ]
 
 
-preprocess_planner: ARAStar
-# preprocess_planner: RRTConnectkConfigDefault
+# preprocess_planner: ARAStar
+preprocess_planner: RRTConnectkConfigDefault

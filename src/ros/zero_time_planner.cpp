@@ -380,7 +380,7 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
                 m_bad_attractors.find(attractor) == m_bad_attractors.end()) {
             	m_task_space->VisualizePoint(sampled_state_id, "attractor");
     	        std::vector<RobotState> path;
-    #if 1
+    #if 0
                 // 2. PLAN PATH TO ACTUAL GOAL
                 RobotState attractor_joint_state;
                 m_task_space->GetJointState(attractor_state_id, attractor_joint_state);
@@ -503,18 +503,18 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
     // goal -> attractor
 
     RobotState start_state;
-#if 1
-    start_state = m_goal.angles;
-#else	// select random start
-    while (!m_task_space->SampleRobotState(start_state));
-#endif
 
+    start_state = m_goal.angles;
+
+#if 1
     if (!m_task_space->IsRobotStateInGoalRegion(start_state)) {
     	ROS_ERROR("Query state outside start region");
     	return;
     }
-
+#endif
+    auto now = clock::now();
     int reg_idx = m_task_space->FindRegionContainingState(start_state);
+    auto find_time = to_seconds(clock::now() - now);
 
     if (reg_idx == -1) {
         ROS_ERROR("Query start state not covered");
@@ -559,7 +559,11 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
 
     // plan
     int m_sol_cost;
+    now = clock::now();
     b_ret = m_planner_zero->replan(100, &solution_state_ids, &m_sol_cost);
+    auto search_time = to_seconds(clock::now() - now);
+
+    ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "Find time: %f, Search time: %f ",find_time, search_time);
 
     // check if an empty plan was received.
     if (b_ret && solution_state_ids.size() <= 0) {
@@ -580,7 +584,7 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
         ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Epsilon (Initial): %0.3f", m_planner_zero->get_initial_eps());
         ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Epsilon (Final): %0.3f", m_planner_zero->get_solution_eps());
         ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Time (Initial): %0.3f", m_planner_zero->get_initial_eps_planning_time());
-        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Time (Final): %0.3f", m_planner_zero->get_final_eps_planning_time());
+        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Time (Final): %0.6f", m_planner_zero->get_final_eps_planning_time());
         ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Path Length (states): %zu", solution_state_ids.size());
         ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Solution Cost: %d", m_sol_cost);
 
@@ -589,12 +593,15 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
             return;
         }
 
-        std::reverse(ztp_path.begin(), ztp_path.end());   // path from to attractor to goal
         path = m_regions[reg_idx].path;
-        path.insert(
-            path.end(),
-            ztp_path.begin(),
-            ztp_path.end());
+
+        if (ztp_path.size() != 1) {
+            std::reverse(ztp_path.begin(), ztp_path.end());   // path from to attractor to goal
+            path.insert(
+                path.end(),
+                ztp_path.begin(),
+                ztp_path.end());
+        }
 
         ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "Preprocessed path length: %zu", m_regions[reg_idx].path.size());
         ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "Query path length:        %zu", ztp_path.size());
