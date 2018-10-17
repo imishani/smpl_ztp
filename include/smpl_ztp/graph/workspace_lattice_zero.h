@@ -40,6 +40,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/serialization/vector.hpp>
+#include <set>
 
 // system includes
 #include <ros/ros.h>
@@ -145,6 +146,8 @@ public:
 
     bool SampleRobotState(RobotState& joint_state);
 
+    bool SearchForValidIK(const GoalConstraint goal, std::vector<double>& angles);
+
     int FindRegionContainingState(const RobotState& joint_state);
 
     bool IsRobotStateInGoalRegion(const RobotState& joint_state);
@@ -154,14 +157,12 @@ public:
 
     // convergence
     void PruneCoveredStates(std::vector<WorkspaceState>& states);
-    void GetUncoveredFrontierStates(
-        const std::vector<int>& state_ids,
-        std::vector<WorkspaceState>& v_states,
-        std::vector<WorkspaceState>& iv_states);
+    void FillFrontierLists(
+        const std::vector<int>& state_ids);
     void GetWorkspaceState(const int state_id, WorkspaceState& workspace_state);
     void GetJointState(const int state_id, RobotState& joint_state);
-    int SetAttractorState(const WorkspaceState& workspace_state);
-    int SetInvalidStartState(const WorkspaceState& workspace_state);
+    int SetAttractorState();
+    int SetInvalidStartState();
     void PassRegions(
         std::vector<region>* regions_ptr,
         std::vector<region>* iregions_ptr);
@@ -169,6 +170,10 @@ public:
     bool IsQueryCovered(
         const RobotState& full_start_state,
         const GoalConstraint& goal);
+
+    // valid/invalid uncovered frontier states
+    std::set<WorkspaceLatticeState*> m_valid_front;
+    std::set<WorkspaceLatticeState*> m_invalid_front;
 private:
 
     // reachability

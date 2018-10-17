@@ -594,6 +594,8 @@ bool PlannerInterface::solveZero(
     else {
         int num_queries = 100;
         double total_time = 0.0;
+        double best_time = 10000.0;
+        double worst_time = 0.0;
         ROS_INFO("Going to run %d random queries", num_queries);
 
         for (int i = 0; i < num_queries; ++i) {
@@ -606,6 +608,11 @@ bool PlannerInterface::solveZero(
             auto now = clock::now();
             m_zero_planner->Query(path);
             res.planning_time = to_seconds(clock::now() - now);
+
+            if (res.planning_time < best_time)
+                best_time = res.planning_time;
+            if (res.planning_time > worst_time)
+                worst_time = res.planning_time;
 
             total_time += res.planning_time;
             ROS_INFO("ZTP query time: %f", res.planning_time);
@@ -638,6 +645,8 @@ bool PlannerInterface::solveZero(
         }
         double mean_time = total_time/num_queries;
         ROS_INFO("Mean planning time: %f", mean_time);
+        ROS_INFO("Worst planning time: %f", worst_time);
+        ROS_INFO("Best planning time: %f", best_time);
     }
     bfs_heuristic.release();    //avoid crash
 

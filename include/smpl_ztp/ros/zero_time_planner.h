@@ -92,8 +92,8 @@ private:
     WorkspaceLatticeZero* m_task_space;
 
     // valid/invalid uncovered frontier states
-    std::set<WorkspaceState> m_valid_front;
-    std::set<WorkspaceState> m_invalid_front;
+    // std::set<WorkspaceState> m_valid_front;
+    // std::set<WorkspaceState> m_invalid_front;
 
     // attractors failed to reach goal
     std::set<WorkspaceState> m_bad_attractors;

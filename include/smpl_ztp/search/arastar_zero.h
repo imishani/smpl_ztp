@@ -183,6 +183,7 @@ public:
     int search_for_valid_uncovered_states(
         const unsigned int r_max,
         const int iv_start_state_id);
+    bool is_state_covered(int state_id);
     ///@}
 private:
 
@@ -198,6 +199,8 @@ private:
         SearchState* bp;
         bool incons;
         bool greedy;
+        bool covered = false;
+        bool covered_this = false;
     };
 
     struct SearchStateCompare
@@ -254,6 +257,8 @@ private:
     int m_reachability_expansions;
     int m_search_mode;
     SearchState* m_best_state;
+    int m_h_max;
+    std::vector<SearchState*> m_h_max_states;
 
     void convertTimeParamsToReplanParams(
         const TimeParameters& t,

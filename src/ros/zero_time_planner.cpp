@@ -254,14 +254,16 @@ bool ZeroTimePlanner::PlanPathFromStartToAttractorOMPL(const RobotState& attract
         ROS_INFO("Solution found by OMPL");
     }
 
+    //TODO fix it
+
     // fill path
-    path.resize(my_plan.trajectory_.joint_trajectory.points.size());
-    for (size_t i = 0; i < my_plan.trajectory_.joint_trajectory.points.size(); ++i) {
-        auto positions = my_plan.trajectory_.joint_trajectory.points[i].positions;
-        std::vector<double> wp;
-        unsigned dataArraySize = sizeof(positions) / sizeof(positions[0]);
-        std::copy(&positions[0], &positions[dataArraySize], back_inserter(path[i]));
-    }
+    // path.resize(my_plan.trajectory_.joint_trajectory.points.size());
+    // for (size_t i = 0; i < my_plan.trajectory_.joint_trajectory.points.size(); ++i) {
+    //     auto positions = my_plan.trajectory_.joint_trajectory.points[i].positions;
+    //     std::vector<double> wp;
+    //     unsigned dataArraySize = sizeof(positions) / sizeof(positions[0]);
+    //     std::copy(&positions[0], &positions[dataArraySize], back_inserter(path[i]));
+    // }
     return true;
 }
 
@@ -354,7 +356,8 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
     if (m_pp_planner != "ARAStar")
         InitMoveitOMPL();
 
-    unsigned int radius_max = 1000;
+    unsigned int radius_max_v = 100;
+    unsigned int radius_max_i = 1000;
     m_task_space->PassRegions(&m_regions, &m_iregions);
 
     // 1. SAMPLE ATTRACTOR
@@ -369,18 +372,20 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
         return;
     }
 
-    m_valid_front.insert(sampled_state);
-    while (!m_valid_front.empty() || !m_invalid_front.empty()) {
-    	while (!m_valid_front.empty()) {
-            auto it = m_valid_front.begin();
-        	WorkspaceState attractor = *it;
-            m_valid_front.erase(it);
-        	int attractor_state_id = m_task_space->SetAttractorState(attractor);
-            if (!m_task_space->IsStateCovered(true, attractor_state_id) &&
-                m_bad_attractors.find(attractor) == m_bad_attractors.end()) {
+    // m_task_space->m_valid_front.insert(sampled_state);   //doing in SampleAttractorState
+    while (!m_task_space->m_valid_front.empty() || !m_task_space->m_invalid_front.empty()) {
+        while (!m_task_space->m_valid_front.empty()) {
+            // auto entry = m_task_space->m_valid_front.front();
+            // WorkspaceState attractor = *it;
+            // m_task_space->m_valid_front.erase(it);
+        	int attractor_state_id = m_task_space->SetAttractorState();
+
+            if (/*!m_task_space->IsStateCovered(true, attractor_state_id)*/
+                !m_planner_zero->is_state_covered(attractor_state_id) /*&&
+                m_bad_attractors.find(attractor) == m_bad_attractors.end()*/) {
             	m_task_space->VisualizePoint(sampled_state_id, "attractor");
     	        std::vector<RobotState> path;
-    #if 0
+#if 1
                 // 2. PLAN PATH TO ACTUAL GOAL
                 RobotState attractor_joint_state;
                 m_task_space->GetJointState(attractor_state_id, attractor_joint_state);
@@ -393,102 +398,108 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
                     ret = PlanPathFromStartToAttractorSMPL(attractor_joint_state, path);
                 }
 
-                if (!ret) {
-                    m_bad_attractors.insert(attractor);
-                    continue;   //TODO: label that state as unreachable
-                }
+                // if (!ret) {
+                //     m_bad_attractors.insert(attractor);
+                //     continue;   //TODO: label that state as unreachable
+                // }
                 // getchar();
-    #endif
-    	        // 3. COMPUTE REACHABILITY
-    	        m_task_space->UpdateSearchMode(REACHABILITY);
+#endif
+                // 3. COMPUTE REACHABILITY
+                m_task_space->UpdateSearchMode(REACHABILITY);
 
-    	        // reinitialize the search space
-    	        m_planner_zero->force_planning_from_scratch();
+                // reinitialize the search space
+                m_planner_zero->force_planning_from_scratch();
 
-    	        // reachability search
-    	        int radius = m_planner_zero->compute_reachability(radius_max, attractor_state_id);
+                // reachability search
+                int radius = m_planner_zero->compute_reachability(radius_max_v, attractor_state_id);
 
-    	        // 4. ADD REGION
-    	        region r;
+                // 4. ADD REGION
+                region r;
                 r.start = full_start_state;
-    	        r.radius = radius;
-    	        r.state = attractor;
-    	        r.path = path;
-    	        m_regions.push_back(r);
+                r.radius = radius;
+                m_task_space->GetWorkspaceState(attractor_state_id, r.state);
+                r.path = path;
+                m_regions.push_back(r);
 
-    	        ROS_INFO("Radius %d, Regions so far %zu", radius, m_regions.size());
+                ROS_INFO("Radius %d, Regions so far %zu", radius, m_regions.size());
 
-    	        // coverage
-    	        // m_task_space->PruneCoveredStates(m_valid_front);
-             //    m_task_space->PruneCoveredStates(m_invalid_front);
+                // if (radius == 336) {
+                //     printf("stop\n");
+                //     getchar();
+                // }
+                // coverage
+                // m_task_space->PruneCoveredStates(m_task_space->m_valid_front);
+                //    m_task_space->PruneCoveredStates(m_task_space->m_invalid_front);
 
-    	        std::vector<int> open;
-    	        m_planner_zero->get_frontier_stateids(open);
+                std::vector<int> open;
+                m_planner_zero->get_frontier_stateids(open);
 
-    	        std::vector<WorkspaceState> valid_states;
-    	        std::vector<WorkspaceState> invalid_states;
-    	        m_task_space->GetUncoveredFrontierStates(open, valid_states, invalid_states);
-    	        // m_valid_front.insert(valid_states.begin(), valid_states.end());
-    	        // m_invalid_front.insert(invalid_states.begin(), invalid_states.end());
-                std::copy( valid_states.begin(), valid_states.end(), std::inserter( m_valid_front, m_valid_front.end() ) );
-                std::copy( invalid_states.begin(), invalid_states.end(), std::inserter( m_invalid_front, m_invalid_front.end() ) );
+                // std::vector<WorkspaceState> valid_states;
+                // std::vector<WorkspaceState> invalid_states;
+                m_task_space->FillFrontierLists(open);
+                // m_task_space->m_valid_front.insert(valid_states.begin(), valid_states.end());
+                // m_task_space->m_invalid_front.insert(invalid_states.begin(), invalid_states.end());
+                // std::copy( valid_states.begin(), valid_states.end(), std::inserter( m_task_space->m_valid_front, m_task_space->m_valid_front.end() ) );
+                // std::copy( invalid_states.begin(), invalid_states.end(), std::inserter( m_task_space->m_invalid_front, m_task_space->m_invalid_front.end() ) );
 
-                ROS_INFO("VALID:");
-                ROS_INFO("Total frontier: %zu, (valid: %zu, invalid: %zu)",
-                    open.size(), valid_states.size(), invalid_states.size());
-                ROS_INFO("Overall! valid: %zu invalid: %zu\n", m_valid_front.size(), m_invalid_front.size());
+                // ROS_INFO("VALID:");
+                // ROS_INFO("Total frontier: %zu, (valid: %zu, invalid: %zu)",
+                //     open.size(), valid_states.size(), invalid_states.size());
+                // ROS_INFO("Overall! valid: %zu invalid: %zu\n", m_task_space->m_valid_front.size(), m_task_space->m_invalid_front.size());
                 // getchar();
-    	        // free task space
-    	        m_task_space->ClearStates();
-    	        m_planner_zero->force_planning_from_scratch_and_free_memory();
+
+                // free task space
+                // m_task_space->ClearStates();
+                // m_planner_zero->force_planning_from_scratch_and_free_memory();
             }
 	    }
 
-        while (!m_invalid_front.empty()) {
-            auto it = m_invalid_front.begin();
-            WorkspaceState istate = *it;
-            m_invalid_front.erase(it);
-            int iv_start_state_id = m_task_space->SetInvalidStartState(istate);
-            if (!m_task_space->IsStateCovered(true, iv_start_state_id)
-                && !m_task_space->IsStateCovered(false, iv_start_state_id)) {
+        while (!m_task_space->m_invalid_front.empty()) {
+            // auto it = m_task_space->m_invalid_front.begin();
+            // WorkspaceState istate = *it;
+            // m_task_space->m_invalid_front.erase(it);
+            int iv_start_state_id = m_task_space->SetInvalidStartState();
+            // if (!m_task_space->IsStateCovered(true, iv_start_state_id)
+            //     && !m_task_space->IsStateCovered(false, iv_start_state_id)) {
+            if (!m_planner_zero->is_state_covered(iv_start_state_id)) {
                 m_task_space->VisualizePoint(sampled_state_id, "attractor");
 
-                int radius = m_planner_zero->search_for_valid_uncovered_states(radius_max, iv_start_state_id);
+                int radius = m_planner_zero->search_for_valid_uncovered_states(radius_max_i, iv_start_state_id);
                 // m_task_space->VisualizePoint(v_state_id, "test");
                 region r;
                 r.radius = radius;
-                r.state = istate;
+                m_task_space->GetWorkspaceState(iv_start_state_id, r.state);
                 m_iregions.push_back(r);
 
                 ROS_INFO("Radius %d, IRegions so far %zu", radius, m_iregions.size());
 
-                // m_task_space->PruneCoveredStates(m_valid_front);
-                // m_task_space->PruneCoveredStates(m_invalid_front);
+                // m_task_space->PruneCoveredStates(m_task_space->m_valid_front);
+                // m_task_space->PruneCoveredStates(m_task_space->m_invalid_front);
 
                 std::vector<int> open;
                 m_planner_zero->get_frontier_stateids(open);
-                std::vector<WorkspaceState> valid_states;
-                std::vector<WorkspaceState> invalid_states;
-                m_task_space->GetUncoveredFrontierStates(open, valid_states, invalid_states);
-                // m_valid_front.insert(valid_states.begin(), valid_states.end());
-                // m_invalid_front.insert(invalid_states.begin(), invalid_states.end());
-                std::copy( valid_states.begin(), valid_states.end(), std::inserter( m_valid_front, m_valid_front.end() ) );
-                std::copy( invalid_states.begin(), invalid_states.end(), std::inserter( m_invalid_front, m_invalid_front.end() ) );
-                ROS_INFO("INVALID:");
-                ROS_INFO("Total frontier: %zu, (valid: %zu, invalid: %zu)",
-                    open.size(), valid_states.size(), invalid_states.size());
-                ROS_INFO("Overall! valid: %zu invalid: %zu\n", m_valid_front.size(), m_invalid_front.size());
+                // std::vector<WorkspaceState> valid_states;
+                // std::vector<WorkspaceState> invalid_states;
+                m_task_space->FillFrontierLists(open);
+                // m_task_space->m_valid_front.insert(valid_states.begin(), valid_states.end());
+                // m_task_space->m_invalid_front.insert(invalid_states.begin(), invalid_states.end());
+                // std::copy( valid_states.begin(), valid_states.end(), std::inserter( m_task_space->m_valid_front, m_task_space->m_valid_front.end() ) );
+                // std::copy( invalid_states.begin(), invalid_states.end(), std::inserter( m_task_space->m_invalid_front, m_task_space->m_invalid_front.end() ) );
+                // ROS_INFO("INVALID:");
+                // ROS_INFO("Total frontier: %zu, (valid: %zu, invalid: %zu)",
+                //     open.size(), valid_states.size(), invalid_states.size());
+                // ROS_INFO("Overall! valid: %zu invalid: %zu\n", m_task_space->m_valid_front.size(), m_task_space->m_invalid_front.size());
                 // getchar();
 
-                if (m_valid_front.size() > 0) {
+                if (m_task_space->m_valid_front.size() > 0) {
                     // if (valid_states.size() > 1) {
                     //     ROS_ERROR("Found more than one valid state %zu", valid_states.size());
                     // }
                     break;
                 }
             }
-            m_task_space->ClearStates();
-            m_planner_zero->force_planning_from_scratch_and_free_memory();
+            // m_task_space->ClearStates();
+            // m_planner_zero->force_planning_from_scratch_and_free_memory();
         }
     }
     m_task_space->PruneRegions();
@@ -497,6 +508,11 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
 
 void ZeroTimePlanner::Query(std::vector<RobotState>& path)
 {
+    // for pose goal
+    if (m_goal.type == GoalType::XYZ_RPY_GOAL) {
+        m_task_space->SearchForValidIK(m_goal, m_goal.angles);
+    }
+
     m_task_space->UpdateSearchMode(QUERY);
 
     // start -> actual goal
@@ -515,6 +531,8 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
     auto now = clock::now();
     int reg_idx = m_task_space->FindRegionContainingState(start_state);
     auto find_time = to_seconds(clock::now() - now);
+    // ROS_INFO("FIND TIME %f", find_time);
+    // getchar();
 
     if (reg_idx == -1) {
         ROS_ERROR("Query start state not covered");
@@ -551,6 +569,9 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
         return;
     }
 
+    printf("start id %d goal id %d\n", start_id, goal_id);
+    // getchar();
+
     bool b_ret = false;
     std::vector<int> solution_state_ids;
 
@@ -563,7 +584,7 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
     b_ret = m_planner_zero->replan(100, &solution_state_ids, &m_sol_cost);
     auto search_time = to_seconds(clock::now() - now);
 
-    ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "Find time: %f, Search time: %f ",find_time, search_time);
+    ROS_INFO_NAMED(PI_LOGGER_ZERO, "Find time: %f, Search time: %f ",find_time, search_time);
 
     // check if an empty plan was received.
     if (b_ret && solution_state_ids.size() <= 0) {
@@ -580,13 +601,18 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
     if (b_ret && (solution_state_ids.size() > 0)) {
         ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "Planning succeeded");
         ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Num Expansions (Initial): %d", m_planner_zero->get_n_expands_init_solution());
-        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Num Expansions (Final): %d", m_planner_zero->get_n_expands());
+        ROS_INFO_NAMED(PI_LOGGER_ZERO, "  Num Expansions (Final): %d", m_planner_zero->get_n_expands());
         ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Epsilon (Initial): %0.3f", m_planner_zero->get_initial_eps());
         ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Epsilon (Final): %0.3f", m_planner_zero->get_solution_eps());
         ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Time (Initial): %0.3f", m_planner_zero->get_initial_eps_planning_time());
         ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Time (Final): %0.6f", m_planner_zero->get_final_eps_planning_time());
-        ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Path Length (states): %zu", solution_state_ids.size());
+        ROS_INFO_NAMED(PI_LOGGER_ZERO, "  Path Length (states): %zu", solution_state_ids.size());
         ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Solution Cost: %d", m_sol_cost);
+
+        if (solution_state_ids.size() != m_planner_zero->get_n_expands() + 1) {
+            ROS_ERROR("Non zero expansion delay");
+            getchar();
+        }
 
         if (!m_task_space->extractPath(solution_state_ids, ztp_path)) {
             ROS_ERROR("Failed to convert state id path to joint variable path");
@@ -630,6 +656,7 @@ void ZeroTimePlanner::WriteRegions()
 void ZeroTimePlanner::ReadRegions()
 {
 	ROS_INFO("Reading regions from file");
+    // getchar();
     try {
         boost::filesystem::path myFile = boost::filesystem::current_path() / "myfile.dat";
         boost::filesystem::ifstream ifs(myFile/*.native()*/);
@@ -639,6 +666,18 @@ void ZeroTimePlanner::ReadRegions()
     catch (...) {
         ROS_WARN("Unable to read preprocessed file");
     }
+
+    // double max_rad = 0.0;
+    // region region_l;
+    // for (auto r : m_regions) {
+    //     if (r.radius > max_rad) {
+    //         max_rad = r.radius;
+    //         region_l = r;
+    //     }
+    // }
+    // printf("radius %f\n", max_rad);
+    // ROS_INFO("Reading done!");
+    // getchar();
 }
 
 ZeroTimePlanner::~ZeroTimePlanner()

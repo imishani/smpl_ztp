@@ -79,7 +79,8 @@ ARAStarZero::ARAStarZero(
     m_search_time_init(clock::duration::zero()),
     m_search_time(clock::duration::zero()),
     m_satisfied_eps(std::numeric_limits<double>::infinity()),
-    m_reachability_expansions(0)
+    m_reachability_expansions(0),
+    m_h_max(0)
 {
     environment_ = space;
 
@@ -236,7 +237,7 @@ int ARAStarZero::replan(
 //     reset the search to its initial state
 // if goal changed
 //     reevaluate heuristics
-//     reorder the open list
+//     reorder the open listq
 //
 // case scenario_hasnt_changed (start and goal the same)
 //   case have solution for previous epsilon
@@ -491,12 +492,15 @@ unsigned int ARAStarZero::compute_reachability(const unsigned int r_max, int att
 {
     ++m_call_number;
     m_iteration = 1;
+    m_h_max = 0;
+    m_h_max_states.clear();
     SMPL_DEBUG_NAMED(SRLOG, "Reinitialize search");
     m_open.clear();
 
     auto attractor_state = getSearchState(attractor_state_id);
     reinitSearchState(attractor_state);
     attractor_state->greedy = true;
+    attractor_state->covered = true;
 
     m_preds.clear();
     m_costs.clear();
@@ -526,6 +530,19 @@ unsigned int ARAStarZero::compute_reachability(const unsigned int r_max, int att
 
         SMPL_DEBUG_NAMED(SRLOG, "Expanding state: %d, h: %d", min_state->state_id, min_state->h);
         m_reachability_expansions++;
+        if (min_state->h > m_h_max) {
+            SMPL_DEBUG_NAMED(SRLOG, "Clearing h_max states");
+            m_h_max_states.clear();
+        }
+        m_h_max = min_state->h;
+
+        // if not previously covered
+        if (!min_state->covered) {
+            min_state->covered = true;
+            min_state->covered_this = true;
+        }
+
+        m_h_max_states.push_back(min_state);
 
         ///@{ Greedy successor --line 7
         auto start = std::chrono::system_clock::now();
@@ -550,12 +567,10 @@ unsigned int ARAStarZero::compute_reachability(const unsigned int r_max, int att
             SearchState* succ_state = getSearchState(succ_id);
             if (succ_state->h == min_h) {
                 greedy_succs.push_back(succ_state);
-                // printf("pushed back %d\n", succ_state->state_id);
             }
         }
 
         for (const auto& s : greedy_succs) {
-            // printf("checking for %d\n", s->state_id);
             if (m_task_space->IsStateToStateValid(min_state->state_id, s->state_id)) {
                 succ_state_g = s;
                 break;
@@ -582,6 +597,18 @@ unsigned int ARAStarZero::compute_reachability(const unsigned int r_max, int att
         else if (m_task_space->IsStateValid(min_state->state_id)){
             SMPL_DEBUG_NAMED(SRLOG, "Exited obstacle hence terminating");
             m_task_space->VisualizePoint(min_state->state_id, "exited");
+            radius = min_state->h;
+
+            // unset covered
+            for (auto s : m_h_max_states) {
+                if (s->h == min_state->h) {
+                    SMPL_DEBUG_NAMED(SRLOG, "Unsetting state %d: h: %d", s->state_id, s->h);
+                    if (s->covered_this) {
+                        s->covered = false;
+                    }
+                }
+            }
+
             break;
         }
         else {
@@ -644,6 +671,8 @@ int ARAStarZero::search_for_valid_uncovered_states(
     const unsigned int r_max,
     const int iv_start_state_id)
 {
+    m_h_max = 0;
+    m_h_max_states.clear();
     ++m_call_number;
     m_iteration = 1;
     SMPL_DEBUG_NAMED(SRLOG, "Reinitialize search");
@@ -664,6 +693,21 @@ int ARAStarZero::search_for_valid_uncovered_states(
         m_costs.clear();
         SearchState* min_state = m_open.min();
         m_open.pop();
+
+        if (min_state->h > m_h_max) {
+            SMPL_DEBUG_NAMED(SRLOG, "Clearing h_max states");
+            m_h_max_states.clear();
+        }
+        m_h_max = min_state->h;
+
+        // if not previously covered
+        if (!min_state->covered) {
+            min_state->covered = true;
+            min_state->covered_this = true;
+        }
+
+        m_h_max_states.push_back(min_state);
+
         m_task_space->VisualizePoint(min_state->state_id, "invalid");
         assert(min_state->iteration_closed != m_iteration);
         assert(min_state->g != INFINITECOST);
@@ -671,8 +715,19 @@ int ARAStarZero::search_for_valid_uncovered_states(
         if (m_task_space->IsStateValid(min_state->state_id) &&
             !m_task_space->IsStateCovered(true, min_state->state_id)) {
             ROS_INFO("New valid found");
-            // m_open.clear();
             m_open.push(min_state);
+            radius = min_state->h;
+
+            // unset covered
+            for (auto s : m_h_max_states) {
+                if (s->h == min_state->h) {
+                    SMPL_DEBUG_NAMED(SRLOG, "Unsetting state %d: h: %d", s->state_id, s->h);
+                    if (s->covered_this) {
+                        s->covered = false;
+                    }
+                }
+            }
+
             break;
         }
 
@@ -700,6 +755,12 @@ int ARAStarZero::search_for_valid_uncovered_states(
         radius++;
     }
     return radius;
+}
+
+bool ARAStarZero::is_state_covered(int state_id)
+{
+    auto search_state = getSearchState(state_id);
+    return search_state->covered;
 }
 
 // Expand states to improve the current solution until a solution within the
@@ -840,6 +901,7 @@ void ARAStarZero::reinitSearchState(SearchState* state)
         state->bp = nullptr;
         state->incons = false;
         state->greedy = false;
+        state->covered_this = false;
     }
 }
 
