@@ -310,8 +310,8 @@ int WorkspaceLatticeZero::SampleAttractorState(
         }
         // WorkspaceState workspace_state;
         WorkspaceCoord workspace_coord;
-        stateRobotToCoord(joint_state, workspace_coord);
-        stateCoordToWorkspace(workspace_coord, workspace_state);
+        stateRobotToWorkspace(joint_state, workspace_state);
+        stateWorkspaceToCoord(workspace_state, workspace_coord);
         int attractor_state_id = createState(workspace_coord);
 
         if (IsStateCovered(true, attractor_state_id)) {
@@ -456,7 +456,7 @@ bool WorkspaceLatticeZero::IsWorkspaceStateInGoalRegion(const WorkspaceState& st
     double eps = 0.0001;
     for (int i = 0; i < state.size(); ++i) {
         if (state[i] < m_min_ws_limits[i] - eps || state[i] > m_max_ws_limits[i] + eps) {
-            SMPL_DEBUG_NAMED("graph", "violates start region limits: %d, min limit: %f, max limit: %f", i, m_min_ws_limits[i], m_max_ws_limits[i]);
+            SMPL_DEBUG_NAMED("graph", "violates start region limits: %d, val: %f, min limit: %f, max limit: %f", i, state[i], m_min_ws_limits[i], m_max_ws_limits[i]);
             return false;
         }
     }
@@ -724,7 +724,7 @@ bool WorkspaceLatticeZero::extractPath(
     stateCoordToWorkspace(start_entry->coord, workspace_state);
     if (start_entry->state.empty()) {
         if (!stateWorkspaceToRobot(workspace_state, start_entry->state)) {
-            ROS_ERROR("ZTP query: failed to find ik for state");
+            ROS_ERROR("ZTP query: failed to find ik for start state");
         }
     }
     path.push_back(start_entry->state);
@@ -783,7 +783,7 @@ bool WorkspaceLatticeZero::extractPath(
             stateCoordToWorkspace(best_goal_entry->coord, workspace_state);
             if (best_goal_entry->state.empty()) {
                 if (!stateWorkspaceToRobot(workspace_state, best_goal_entry->state)) {
-                    ROS_ERROR("ZTP query: failed to find ik for state");
+                    ROS_ERROR("ZTP query: failed to find ik for goal state");
                 }
             }
             path.push_back(best_goal_entry->state);

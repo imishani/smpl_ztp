@@ -291,6 +291,8 @@ bool ZeroTimePlanner::PlanPathFromStartToAttractorSMPL(const RobotState& attract
     goal.angles = attractor;
     goal.angle_tolerances.resize(attractor.size());
     std::fill(goal.angle_tolerances.begin(),goal.angle_tolerances.end(), smpl::angles::to_radians(1.0));
+    goal.angle_tolerances[0] = 0.05;
+    goal.angle_tolerances[1] = 0.05;
     m_manip_space->setGoal(goal);
 
     // set sbpl planner goal
