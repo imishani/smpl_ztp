@@ -48,7 +48,7 @@
 #include <smpl/heuristic/robot_heuristic.h>
 #include <smpl/graph/workspace_lattice_action_space.h>
 
-// #define tie_breaking
+#define tie_breaking
 
 namespace smpl {
 
@@ -121,9 +121,6 @@ bool WorkspaceLatticeZero::readGoalRegion()
     }
 
     // normalize [-pi,pi]x[-pi/2,pi/2]x[-pi,pi]
-    normalize_euler_zyx(&m_min_ws_limits[3]);
-    normalize_euler_zyx(&m_max_ws_limits[3]);
-
     // center of cell
     WorkspaceCoord limits_coord(6 + freeAngleCount());
     stateWorkspaceToCoord(m_min_ws_limits, limits_coord);
@@ -131,6 +128,19 @@ bool WorkspaceLatticeZero::readGoalRegion()
 
     stateWorkspaceToCoord(m_max_ws_limits, limits_coord);
     stateCoordToWorkspace(limits_coord, m_max_ws_limits);
+
+    // printf("min %f max %f\n", m_min_ws_limits[0], m_max_ws_limits[0]);
+    // printf("min %f max %f\n", m_min_ws_limits[1], m_max_ws_limits[1]);
+    // printf("min %f max %f\n", m_min_ws_limits[2], m_max_ws_limits[2]);
+
+    // getchar();
+
+    for (size_t i = 0; i < m_min_ws_limits.size(); ++i) {
+        if (m_min_ws_limits[i] > m_max_ws_limits[i]) {
+            ROS_ERROR("Min limit greater than max limit at index %zu", i);
+            return false;
+        }
+    }
 
     m_distribution.resize(6 + freeAngleCount());
 
@@ -300,8 +310,8 @@ int WorkspaceLatticeZero::SampleAttractorState(
         }
         // WorkspaceState workspace_state;
         WorkspaceCoord workspace_coord;
-        stateRobotToCoord(joint_state, workspace_coord);
-        stateCoordToWorkspace(workspace_coord, workspace_state);
+        stateRobotToWorkspace(joint_state, workspace_state);
+        stateWorkspaceToCoord(workspace_state, workspace_coord);
         int attractor_state_id = createState(workspace_coord);
 
         if (IsStateCovered(true, attractor_state_id)) {
@@ -317,6 +327,7 @@ int WorkspaceLatticeZero::SampleAttractorState(
         WorkspaceLatticeState* entry = getState(attractor_state_id);
         entry->state = joint_state;
         m_goal_state_id = attractor_state_id;  // for WorkspaceDistHeuristic
+        m_valid_front.insert(entry);
 
         // set the (modified) goal
         GoalConstraint gc = m_goal;     //may not be required but just in case
@@ -344,7 +355,7 @@ bool WorkspaceLatticeZero::SampleRobotState(RobotState& joint_state)
     }
 
     // normalize and project to center
-    normalize_euler_zyx(&workspace_state[3]);
+    // normalize_euler_zyx(&workspace_state[3]);
     WorkspaceCoord workspace_coord;
     stateWorkspaceToCoord(workspace_state, workspace_coord);
     stateCoordToWorkspace(workspace_coord, workspace_state);
@@ -366,6 +377,19 @@ bool WorkspaceLatticeZero::SampleRobotState(RobotState& joint_state)
     SMPL_DEBUG_STREAM_NAMED("graph.expands", "    joint state    : " << joint_state);
 
     return true;
+}
+
+bool WorkspaceLatticeZero::SearchForValidIK(const GoalConstraint goal, std::vector<double>& angles)
+{
+    double fa_init = m_min_ws_limits[6]; // assuming there is only one redundant joint
+    std::vector<double> seed(6 + freeAngleCount());
+    for (double fa = fa_init; fa <= m_max_ws_limits[6]; ++fa) {
+        seed[6] = fa;
+        if (stateWorkspaceToRobot(goal.angles, seed, angles)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 int WorkspaceLatticeZero::FindRegionContainingState(const RobotState& joint_state)
@@ -391,10 +415,12 @@ int WorkspaceLatticeZero::FindRegionContainingState(const RobotState& joint_stat
         stateWorkspaceToCoord(r.state, workspace_coord);
         int attractor_state_id = createState(workspace_coord);
         RobotHeuristic* h = heuristic(0);
-        SMPL_DEBUG_STREAM_NAMED("graph.expands", "  attractor: " << r.state);
         int dsum = h->GetFromToHeuristic(query_state_id, attractor_state_id);
-        // printf("dsum %d radius %u\n", dsum, r.radius);
+        SMPL_DEBUG_STREAM_NAMED("graph.expands", "    query state:     " << workspace_state);
+        SMPL_DEBUG_STREAM_NAMED("graph.expands", "    attractor state: " << r.state);
+
         if (dsum < r.radius || dsum == 0) {
+            // printf("dsum %d radius %u id1 %d id2 %d\n", dsum, r.radius, query_state_id, attractor_state_id);
             // ROS_INFO("Covered try %d", count);
             goal_state = r.state;
             covered = true;
@@ -404,8 +430,7 @@ int WorkspaceLatticeZero::FindRegionContainingState(const RobotState& joint_stat
     }
 
     if (covered) {
-        SMPL_DEBUG_NAMED("graph", "Attractor State of Containing Region");
-        SMPL_DEBUG_STREAM_NAMED("graph.expands", "    workspace state  : " << goal_state);
+        SMPL_DEBUG_NAMED("graph", "Attractor State of Containing Region %d", reg_idx);
         return reg_idx;
     }
     else {
@@ -431,7 +456,7 @@ bool WorkspaceLatticeZero::IsWorkspaceStateInGoalRegion(const WorkspaceState& st
     double eps = 0.0001;
     for (int i = 0; i < state.size(); ++i) {
         if (state[i] < m_min_ws_limits[i] - eps || state[i] > m_max_ws_limits[i] + eps) {
-            SMPL_DEBUG_NAMED("graph", "violates start region limits: %d, min limit: %f, max limit: %f", i, m_min_ws_limits[i], m_max_ws_limits[i]);
+            SMPL_DEBUG_NAMED("graph", "violates start region limits: %d, val: %f, min limit: %f, max limit: %f", i, state[i], m_min_ws_limits[i], m_max_ws_limits[i]);
             return false;
         }
     }
@@ -452,23 +477,17 @@ void WorkspaceLatticeZero::PruneCoveredStates(std::vector<WorkspaceState>& works
     workspace_states = pruned_states;
 }
 
-void WorkspaceLatticeZero::GetUncoveredFrontierStates(
-    const std::vector<int>& state_ids,
-    std::vector<WorkspaceState>& v_states,
-    std::vector<WorkspaceState>& iv_states)
+void WorkspaceLatticeZero::FillFrontierLists(
+    const std::vector<int>& state_ids)
 {
     for (const auto& state_id : state_ids) {
-        // if (!IsStateCovered(true, state_id) && !IsStateCovered(false, state_id)) {
-            auto entry = getState(state_id);
-            WorkspaceState workspace_state;
-            stateCoordToWorkspace(entry->coord, workspace_state);
-            if (IsStateValid(state_id)) {
-                v_states.push_back(workspace_state);
-            }
-            else {
-                iv_states.push_back(workspace_state);
-            }
-        // }
+        auto entry = getState(state_id);
+        if (IsStateValid(state_id)) {
+            m_valid_front.insert(entry);
+        }
+        else {
+            m_invalid_front.insert(entry);
+        }
     }
 }
 
@@ -484,16 +503,19 @@ void WorkspaceLatticeZero::GetJointState(const int state_id, RobotState& joint_s
     joint_state = entry->state;
 }
 
-int WorkspaceLatticeZero::SetAttractorState(const WorkspaceState& workspace_state)
+int WorkspaceLatticeZero::SetAttractorState()
 {
-    WorkspaceCoord workspace_coord;
-    RobotState joint_state;
-    stateWorkspaceToCoord(workspace_state, workspace_coord);
-    stateWorkspaceToRobot(workspace_state, joint_state);
-    int attractor_state_id =  createState(workspace_coord);
+    auto it = m_valid_front.begin();
+    auto entry = *it;
+    m_valid_front.erase(it);
 
-    WorkspaceLatticeState* entry = getState(attractor_state_id);
-    entry->state = joint_state;
+    WorkspaceState workspace_state;
+    stateCoordToWorkspace(entry->coord, workspace_state);
+    if (entry->state.empty()) {
+        stateWorkspaceToRobot(workspace_state, entry->state);
+    }
+
+    int attractor_state_id =  createState(entry->coord);
     m_goal_state_id = attractor_state_id;  // for WorkspaceDistHeuristic
 
     // set the (modified) goal
@@ -504,6 +526,10 @@ int WorkspaceLatticeZero::SetAttractorState(const WorkspaceState& workspace_stat
         ROS_ERROR("Set new attractor state goal failed");
     }
 
+    // if (m_regions_ptr->size() >= 1534) {
+    //     SMPL_INFO_STREAM_NAMED("graph.expands", "    attractor state: " << workspace_state);
+    // }
+
     // auto* vis_name = "attractor_config";
     // SV_SHOW_INFO_NAMED(vis_name, getStateVisualization(joint_state, vis_name));
     // m_ik_seed = state;
@@ -512,21 +538,24 @@ int WorkspaceLatticeZero::SetAttractorState(const WorkspaceState& workspace_stat
     return attractor_state_id;
 }
 
-int WorkspaceLatticeZero::SetInvalidStartState(const WorkspaceState& workspace_state)
+int WorkspaceLatticeZero::SetInvalidStartState()
 {
-    WorkspaceCoord workspace_coord;
-    RobotState joint_state;
-    stateWorkspaceToCoord(workspace_state, workspace_coord);
-    stateWorkspaceToRobot(workspace_state, joint_state);
-    int iv_state_id = createState(workspace_coord);
+    auto it = m_invalid_front.begin();
+    auto entry = *it;
+    m_invalid_front.erase(it);
+
+    WorkspaceState workspace_state;
+    stateCoordToWorkspace(entry->coord, workspace_state);
+    if (entry->state.empty()) {
+        stateWorkspaceToRobot(workspace_state, entry->state);
+    }
 
     SMPL_DEBUG_NAMED("graph", "Invalid Start State");
     SMPL_DEBUG_STREAM_NAMED("graph.expands", "    workspace state: " << workspace_state);
-    SMPL_DEBUG_STREAM_NAMED("graph.expands", "    workspace coord: " << workspace_coord);
-    SMPL_DEBUG_STREAM_NAMED("graph.expands", "    joint state    : " << joint_state);
+    SMPL_DEBUG_STREAM_NAMED("graph.expands", "    workspace coord: " << entry->coord);
+    SMPL_DEBUG_STREAM_NAMED("graph.expands", "    joint state    : " << entry->state);
 
-    WorkspaceLatticeState* entry = getState(iv_state_id);
-    entry->state = joint_state;
+    int iv_state_id =  createState(entry->coord);
     m_goal_state_id = iv_state_id;  // for WorkspaceDistHeuristic
 
     // for heuristic
@@ -691,6 +720,13 @@ bool WorkspaceLatticeZero::extractPath(
     }
 
     WorkspaceLatticeState* start_entry = getState(ids[0]);
+    WorkspaceState workspace_state;
+    stateCoordToWorkspace(start_entry->coord, workspace_state);
+    if (start_entry->state.empty()) {
+        if (!stateWorkspaceToRobot(workspace_state, start_entry->state)) {
+            ROS_ERROR("ZTP query: failed to find ik for start state");
+        }
+    }
     path.push_back(start_entry->state);
 
     for (size_t i = 1; i < ids.size(); ++i) {
@@ -743,9 +779,23 @@ bool WorkspaceLatticeZero::extractPath(
                 return false;
             }
 
+            WorkspaceState workspace_state;
+            stateCoordToWorkspace(best_goal_entry->coord, workspace_state);
+            if (best_goal_entry->state.empty()) {
+                if (!stateWorkspaceToRobot(workspace_state, best_goal_entry->state)) {
+                    ROS_ERROR("ZTP query: failed to find ik for goal state");
+                }
+            }
             path.push_back(best_goal_entry->state);
         } else {
             WorkspaceLatticeState* state_entry = getState(curr_id);
+            WorkspaceState workspace_state;
+            stateCoordToWorkspace(state_entry->coord, workspace_state);
+            if (state_entry->state.empty()) {
+                if (!stateWorkspaceToRobot(workspace_state, state_entry->state)) {
+                    ROS_ERROR("ZTP query: failed to find ik for state");
+                }
+            }
             path.push_back(state_entry->state);
         }
     }
@@ -795,6 +845,12 @@ void WorkspaceLatticeZero::GetSuccs(
     auto* vis_name = "expansion";
     SV_SHOW_DEBUG_NAMED(vis_name, getStateVisualization(parent_entry->state, vis_name));
     // getchar();
+
+    // if (m_regions_ptr->size() > 1534) {
+    //     WorkspaceState ws_parent;
+    //     stateCoordToWorkspace(parent_entry->coord, ws_parent);
+    //     SMPL_INFO_STREAM_NAMED("graph.expands", "  state: " << ws_parent);
+    // }
 
 #if 0
     int hue;
@@ -853,11 +909,11 @@ void WorkspaceLatticeZero::GetSuccs(
                 continue;
             }
         }
-        else {
-            if (!checkAction(parent_entry->state, action, &final_rstate)) {
-                continue;
-            }
-        }
+        // else {
+        //     if (!checkAction(parent_entry->state, action, &final_rstate)) {
+        //         continue;
+        //     }
+        // }
 
         const WorkspaceState& final_state = action.back();
         WorkspaceCoord succ_coord;
@@ -953,7 +1009,7 @@ bool WorkspaceLatticeZero::isGoal(const WorkspaceState& state) const
         return false;
     }   break;
     case GoalType::XYZ_GOAL: {
-        SMPL_WARN_ONCE("WorkspaceLattice xyz goals not implemented");
+        SMPL_WARN_ONCE("WorkspaceLatticeZero xyz goals not implemented");
         return false;
     }   break;
     default:

@@ -100,9 +100,9 @@ auto MakeWorkspaceLatticeZero(
     wsp.res_x = grid->resolution();
     wsp.res_y = grid->resolution();
     wsp.res_z = grid->resolution();
-    wsp.R_count = 72;
-    wsp.P_count = 36 + 1;
-    wsp.Y_count = 72;
+    wsp.R_count = 36; //72;
+    wsp.P_count = 18 + 1; //36 + 1;
+    wsp.Y_count = 36; //72;
 
     auto* rmi = robot->getExtension<RedundantManipulatorInterface>();
     if (!rmi) {
@@ -583,7 +583,7 @@ bool PlannerInterface::solveZero(
 
     m_zero_planner->setStartAndGoal(initial_positions, goal);
 
-    auto then = clock::now();
+    auto task_space_ = dynamic_cast<WorkspaceLatticeZero*>(task_space.get());
 
     std::vector<RobotState> path;
 
@@ -592,13 +592,31 @@ bool PlannerInterface::solveZero(
         m_zero_planner->PreProcess(initial_positions);
     }
     else {
-        int num_queries = 10;
+        int num_queries = 100;
+        double total_time = 0.0;
+        double best_time = 10000.0;
+        double worst_time = 0.0;
         ROS_INFO("Going to run %d random queries", num_queries);
+
         for (int i = 0; i < num_queries; ++i) {
             ROS_INFO("\n************* QUERY %d ***************", i);
             ROS_INFO("Zero time query");
+
+            while (!task_space_->SampleRobotState(goal.angles));
+            m_zero_planner->setStartAndGoal(initial_positions, goal);
+
+            auto now = clock::now();
             m_zero_planner->Query(path);
-            postProcessPath(path);
+            res.planning_time = to_seconds(clock::now() - now);
+
+            if (res.planning_time < best_time)
+                best_time = res.planning_time;
+            if (res.planning_time > worst_time)
+                worst_time = res.planning_time;
+
+            total_time += res.planning_time;
+            ROS_INFO("ZTP query time: %f", res.planning_time);
+            // postProcessPath(path);
             SV_SHOW_INFO_NAMED("trajectory", makePathVisualization(path));
 
             ROS_DEBUG_NAMED(PI_LOGGER, "smoothed path:");
@@ -622,11 +640,13 @@ bool PlannerInterface::solveZero(
             profilePath(res.trajectory.joint_trajectory);
         //    removeZeroDurationSegments(traj);
 
-            auto now = clock::now();
-            res.planning_time = to_seconds(now - then);
             m_res = res; // record the last result
             // getchar();
         }
+        double mean_time = total_time/num_queries;
+        ROS_INFO("Mean planning time: %f", mean_time);
+        ROS_INFO("Worst planning time: %f", worst_time);
+        ROS_INFO("Best planning time: %f", best_time);
     }
     bfs_heuristic.release();    //avoid crash
 

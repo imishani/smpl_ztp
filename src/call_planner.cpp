@@ -702,6 +702,10 @@ int main(int argc, char* argv[])
     moveit_msgs::PlanningScene planning_scene;
     planning_scene.robot_state = start_state;
     bool query = false;
+    if (!nh.getParam("query", query)) {
+        ROS_ERROR("Failed to read 'query' from the param server");
+        return false;
+    }
     // bool query = true;
     if (!planner.solveZero(planning_scene, req, res, query)) {
         ROS_ERROR("Failed to plan.");

@@ -112,25 +112,30 @@ int WorkspaceDistHeuristic::GetFromToHeuristic(int from_id, int to_id)
         return 0;
     }
 
-    if (from_id == planningSpace()->getGoalStateID()) {
-        const RobotState s = planningSpace()->goal().angles;
+    // if (from_id == planningSpace()->getGoalStateID()) {
+    //     printf("here1 %d %d\n", from_id, to_id);
+    //     const RobotState s = planningSpace()->goal().angles;
+    //     const RobotState t = m_ers->extractState(to_id);
+    //     return (int)(FIXED_POINT_RATIO * computeJointDistance(s, t));
+    // } else if (to_id == planningSpace()->getGoalStateID()) {
+    //     printf("here2 %d %d\n", from_id, to_id);
+    //     const RobotState s = m_ers->extractState(from_id);
+    //     const RobotState t = planningSpace()->goal().angles;
+    //     return (int)(FIXED_POINT_RATIO * computeJointDistance(s, t));
+    // } else {
+        // printf("here3 %d %d\n", from_id, to_id);
+        const RobotState s = m_ers->extractState(from_id);
         const RobotState t = m_ers->extractState(to_id);
         return (int)(FIXED_POINT_RATIO * computeJointDistance(s, t));
-    } else if (to_id == planningSpace()->getGoalStateID()) {
-        const RobotState s = m_ers->extractState(from_id);
-        const RobotState t = planningSpace()->goal().angles;
-        return (int)(FIXED_POINT_RATIO * computeJointDistance(s, t));
-    } else {
-        const RobotState s = m_ers->extractState(from_id);
-        const RobotState t = m_ers->extractState(to_id);
-        return (int)(FIXED_POINT_RATIO * computeJointDistance(s, t));
-    }
+    // }
 }
 
 double WorkspaceDistHeuristic::computeJointDistance(
     const RobotState& s,
     const RobotState& t) const
 {
+    // printf("s %f %f %f %f %f %f %f\n", s[0], s[1], s[2], s[3], s[4], s[5], s[6]);
+    // printf("t %f %f %f %f %f %f %f\n", t[0], t[1], t[2], t[3], t[4], t[5], t[6]);
     double dsum = 0.0;
     for (size_t i = 0; i < s.size(); ++i) {
         double dj = (s[i] - t[i]);
