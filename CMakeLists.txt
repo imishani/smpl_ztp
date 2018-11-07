@@ -21,13 +21,13 @@ find_package(
         leatherman
         roscpp
         sbpl_kdl_robot_model
-        smpl
         smpl_ros
         smpl_moveit_interface
         moveit_ros_planning
         moveit_ros_planning_interface
         trajectory_msgs
         moveit_msgs)
+find_package(smpl REQUIRED)
 
 find_package(sbpl REQUIRED)
 set(sbpl_INCLUDE_DIRS ${SBPL_INCLUDE_DIRS})
@@ -40,10 +40,10 @@ catkin_package(
     LIBRARIES
         smpl_ztp
     CATKIN_DEPENDS
-        smpl
     DEPENDS
         Boost
-        sbpl)
+        sbpl
+        smpl)
 
 ##########################
 # Build smpl_ztp library #
@@ -64,6 +64,7 @@ target_include_directories(smpl_ztp SYSTEM PUBLIC ${Boost_INCLUDE_DIRS})
 target_include_directories(smpl_ztp SYSTEM PUBLIC ${SBPL_INCLUDE_DIRS})
 
 target_link_libraries(smpl_ztp PUBLIC ${catkin_LIBRARIES})
+target_link_libraries(smpl_ztp PUBLIC smpl::smpl)
 target_link_libraries(smpl_ztp PUBLIC ${Boost_LIBRARIES})
 target_link_libraries(smpl_ztp PUBLIC ${SBPL_LIBRARIES})
 
