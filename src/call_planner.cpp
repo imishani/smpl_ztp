@@ -30,7 +30,7 @@
 /// \author Benjamin Cohen
 
 // standard includes
-#include <stdlib.h>
+#include <cstdlib>
 #include <string>
 #include <thread>
 #include <vector>
@@ -424,14 +424,6 @@ auto SetupMoveItRobotModel(const std::string& urdf, const RobotModelConfig &conf
 
     ROS_INFO("Initialize PR2 MoveIt Robot Model");
 
-//    auto robot_loader = boost::make_shared<robot_model_loader::RobotModelLoader>(
-//            "robot_description", true);
-//    auto robot_model = robot_loader->getModel();
-//    if (!robot_model) {
-//        ROS_ERROR("Robot model is null");
-//        return rm;
-//    }
-
     std::vector<std::string> redundant_joints;
     redundant_joints.emplace_back("r_shoulder_pan_joint");
     auto joint_group = robot_model->getJointModelGroup("right_arm");
@@ -470,7 +462,7 @@ void initAllowedCollisionsPR2(smpl::collision::CollisionSpace &cspace)
 
 int main(int argc, char* argv[])
 {
-    ros::init(argc, argv, "smpl_test");
+    ros::init(argc, argv, "smpl_ztp");
     ros::NodeHandle nh;
     ros::NodeHandle ph("~");
 
@@ -712,7 +704,7 @@ int main(int argc, char* argv[])
     bool query = false;
     if (!nh.getParam("query", query)) {
         ROS_ERROR("Failed to read 'query' from the param server");
-        return false;
+        return 1;
     }
     // bool query = true;
     if (!planner.solveZero(planning_scene, req, res, query)) {

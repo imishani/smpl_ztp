@@ -1,10 +1,12 @@
 <launch>
     <arg name="debug" default="false"/>
 
-    <param name="robot_description" command="$(find xacro)/xacro.py '$(find pr2_description)/robots/pr2.urdf.xacro'"/>
+    <param name="robot_description" command="$(find xacro)/xacro '$(find pr2_description)/robots/pr2.urdf.xacro'"/>
 
     <arg unless="$(arg debug)" name="launch-prefix" value=""/>
-    <arg     if="$(arg debug)" name="launch-prefix" value="gdb ex --args"/>
+    <arg     if="$(arg debug)" name="launch-prefix" value="xterm -e gdb --args"/> <!--    gdb ex -args -->
+
+    <rosparam command="load" file="$(find smpl_ztp)/config/ztp_params_pr2_right_arm.yaml"/>
 
     <node pkg="smpl_ztp" type="call_planner_ztp" name="call_planner"
             launch-prefix="$(arg launch-prefix)">
@@ -32,7 +34,7 @@
 
         <!-- planner params -->
         <rosparam command="load" file="$(find smpl_test)/config/pr2_right_arm.yaml"/>
-        <param name="planning/mprim_filename" value="$(find smpl_test)/config/pr2.mprim"/>
+        <param name="planning/mprim_filename" value="$(find smpl_ztp)/config/pr2.mprim"/>
 
         <!-- 2. scene -->
         <!-- 2.1 robot state -->
@@ -45,6 +47,5 @@
 
     </node>
 
-    <rosparam command="load" file="$(find smpl_ztp)/config/ztp_params_pr2_right_arm.yaml"/>
 </launch>
 

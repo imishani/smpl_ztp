@@ -220,7 +220,7 @@ bool WorkspaceLatticeZero::IsStateToStateValid(int from_state_id, int to_state_i
     WorkspaceLatticeState* from_entry = getState(from_state_id);
     WorkspaceLatticeState* to_entry = getState(to_state_id);
 
-    assert(from_entry->state == robot()->jointVariableCount());
+    assert((from_entry->state).size() == robot()->jointVariableCount());
 
 // #ifdef tie_breaking
     if (to_entry->state.empty()) {
