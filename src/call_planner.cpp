@@ -52,7 +52,7 @@
 #include <smpl/distance_map/edge_euclid_distance_map.h>
 #include <smpl/distance_map/euclid_distance_map.h>
 #include <smpl/ros/propagation_distance_field.h>
-#include <smpl_moveit_interface/planner/moveit_robot_model.h>
+#include <smpl_ztp/planner/moveit_robot_model.h>
 #include <smpl_ztp/ros/planner_interface_ztp.h>
 #include <visualization_msgs/MarkerArray.h>
 
@@ -408,7 +408,8 @@ auto SetupKDLRobotModel(const std::string& urdf, const RobotModelConfig &config)
     return std::move(rm);
 }
 
-auto SetupMoveItRobotModel(const std::string& urdf, const RobotModelConfig &config)
+auto SetupMoveItRobotModel(const std::string& urdf, const RobotModelConfig &config,
+                           std::shared_ptr<moveit::core::RobotModel>& robot_model)
     -> std::unique_ptr<sbpl_interface::MoveItRobotModel>
 {
     std::unique_ptr<sbpl_interface::MoveItRobotModel> rm;
@@ -423,16 +424,16 @@ auto SetupMoveItRobotModel(const std::string& urdf, const RobotModelConfig &conf
 
     ROS_INFO("Initialize PR2 MoveIt Robot Model");
 
-    auto robot_loader = boost::make_shared<robot_model_loader::RobotModelLoader>(
-            "robot_description", true);
-    auto robot_model = robot_loader->getModel();
-    if (!robot_model) {
-        ROS_ERROR("Robot model is null");
-        return false;
-    }
+//    auto robot_loader = boost::make_shared<robot_model_loader::RobotModelLoader>(
+//            "robot_description", true);
+//    auto robot_model = robot_loader->getModel();
+//    if (!robot_model) {
+//        ROS_ERROR("Robot model is null");
+//        return rm;
+//    }
 
     std::vector<std::string> redundant_joints;
-    redundant_joints.push_back("r_shoulder_pan_joint");
+    redundant_joints.emplace_back("r_shoulder_pan_joint");
     auto joint_group = robot_model->getJointModelGroup("right_arm");
     joint_group->setRedundantJoints(redundant_joints);
 
@@ -502,11 +503,18 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    auto rm = SetupMoveItRobotModel(urdf, robot_config);
-    if (!rm) {
-        ROS_ERROR("Failed to set up Robot Model");
+    auto robot_loader = boost::make_shared<robot_model_loader::RobotModelLoader>(
+            "robot_description", true);
+    auto robot_model = robot_loader->getModel();
+    if (!robot_model) {
+        ROS_ERROR("Robot model is null");
         return 1;
     }
+    auto rm = SetupMoveItRobotModel(urdf, robot_config, robot_model);
+//    if (!rm) {
+//        ROS_ERROR("Failed to set up Robot Model");
+//        return 1;
+//    }
 
     ////////////////////
     // Occupancy Grid //
@@ -600,7 +608,7 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    cc.setWorldToModelTransform(Eigen::Affine3d::Identity());
+    cc.setWorldToModelTransform(Eigen::Isometry3d::Identity());
 
     SV_SHOW_INFO(grid.getDistanceFieldVisualization(0.2));
 

@@ -224,7 +224,7 @@ protected:
 
     bool extractGoalPoseFromGoalConstraints(
         const moveit_msgs::Constraints& goal_constraints,
-        Eigen::Affine3d& goal_pose_out,
+        Eigen::Isometry3d& goal_pose_out,
         Eigen::Vector3d& offset) const;
 
     // extract tolerance as an array of 6 doubles: x, y, z, roll, pitch, yaw

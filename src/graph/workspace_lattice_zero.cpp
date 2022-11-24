@@ -150,7 +150,7 @@ bool WorkspaceLatticeZero::readGoalRegion()
     return true;
 }
 
-bool WorkspaceLatticeZero::projectToPose(int state_id, Eigen::Affine3d& pose)
+bool WorkspaceLatticeZero::projectToPose(int state_id, Eigen::Isometry3d& pose)
 {
     // if (state_id == getGoalStateID()) {
     //     pose = goal().pose;

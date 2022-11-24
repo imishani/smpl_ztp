@@ -17,6 +17,12 @@ class CollisionSpaceScene
 {
 public:
 
+//    struct CollisionObject2 {
+//        std::string id;
+//        std::vector<CollisionShape*> shapes;
+//        AlignedVector<Eigen::Isometry3d> shape_poses;
+//    };
+
     void SetCollisionSpace(smpl::collision::CollisionSpace* cspace);
 
     bool SetRobotState(const moveit_msgs::RobotState& robot_state);
@@ -40,13 +46,16 @@ public:
 
 private:
 
+
     std::vector<std::unique_ptr<octomap::OcTree>> m_octrees;
     std::vector<std::unique_ptr<smpl::collision::CollisionShape>> m_collision_shapes;
     std::vector<std::unique_ptr<smpl::collision::CollisionObject>> m_collision_objects;
+    // std::vector<std::unique_ptr<CollisionObject2>> m_collision_objects;
     smpl::collision::CollisionSpace *m_cspace = nullptr;
 
     auto FindCollisionObject(const std::string& id) const
         -> smpl::collision::CollisionObject*;
+        // -> CollisionObject2*;
 
     bool CheckCollisionObjectSanity(const moveit_msgs::CollisionObject& object) const;
     bool CheckInsertOctomap(const octomap_msgs::OctomapWithPose& octomap) const;

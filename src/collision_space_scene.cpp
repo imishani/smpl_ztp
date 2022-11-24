@@ -11,14 +11,14 @@ static const char* LOG = "collision_space_scene";
 using namespace smpl::collision;
 
 template <class T, class... Args>
-auto make_unique(Args&&... args) -> std::unique_ptr<T> {
+auto make_unique1(Args&&... args) -> std::unique_ptr<T> {
     return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
 
 auto ConvertCollisionObjectToObject(const moveit_msgs::CollisionObject& co)
     -> std::unique_ptr<const collision_detection::World::Object>
 {
-    auto o = make_unique<collision_detection::World::Object>(co.id);
+    auto o = make_unique1<collision_detection::World::Object>(co.id);
 
     for (size_t pidx = 0; pidx < co.primitives.size(); ++pidx) {
         const shape_msgs::SolidPrimitive& prim = co.primitives[pidx];
@@ -30,7 +30,7 @@ auto ConvertCollisionObjectToObject(const moveit_msgs::CollisionObject& co)
             return nullptr;
         }
 
-        Eigen::Affine3d transform;
+        Eigen::Isometry3d transform;
         tf::poseMsgToEigen(pose, transform);
 
         o->shapes_.push_back(sp);
@@ -47,7 +47,7 @@ auto ConvertCollisionObjectToObject(const moveit_msgs::CollisionObject& co)
             return nullptr;
         }
 
-        Eigen::Affine3d transform;
+        Eigen::Isometry3d transform;
         tf::poseMsgToEigen(pose, transform);
 
         o->shapes_.push_back(sp);
@@ -64,7 +64,7 @@ auto ConvertCollisionObjectToObject(const moveit_msgs::CollisionObject& co)
             return nullptr;
         }
 
-        Eigen::Affine3d transform;
+        Eigen::Isometry3d transform;
         tf::poseMsgToEigen(pose, transform);
 
         o->shapes_.push_back(sp);
@@ -94,11 +94,11 @@ auto ConvertOctomapToObject(const octomap_msgs::OctomapWithPose& octomap)
     decltype(shapes::OcTree().octree) ot(tree);         // snap into a shared_ptr
     shapes::ShapeConstPtr sp(new shapes::OcTree(ot));   // snap into a shape
 
-    Eigen::Affine3d transform;
+    Eigen::Isometry3d transform;
     tf::poseMsgToEigen(octomap.origin, transform);
 
     // construct the object
-    auto o = make_unique<collision_detection::World::Object>(octomap.octomap.id); // snap into an object
+    auto o = make_unique1<collision_detection::World::Object>(octomap.octomap.id); // snap into an object
     o->shapes_.push_back(sp);
     o->shape_poses_.push_back(transform);
 
@@ -191,7 +191,7 @@ bool CollisionSpaceScene::AddCollisionObjectMsg(
     }
 
     std::vector<CollisionShape*> shapes;
-    AlignedVector<Eigen::Affine3d> shape_poses;
+    AlignedVector<Eigen::Isometry3d> shape_poses;
 
     for (size_t i = 0; i < object.primitives.size(); ++i) {
         auto& prim = object.primitives[i];
@@ -199,22 +199,22 @@ bool CollisionSpaceScene::AddCollisionObjectMsg(
         std::unique_ptr<CollisionShape> shape;
         switch (prim.type) {
         case shape_msgs::SolidPrimitive::BOX:
-            shape = make_unique<BoxShape>(
+            shape = make_unique1<BoxShape>(
                     prim.dimensions[shape_msgs::SolidPrimitive::BOX_X],
                     prim.dimensions[shape_msgs::SolidPrimitive::BOX_Y],
                     prim.dimensions[shape_msgs::SolidPrimitive::BOX_Z]);
             break;
         case shape_msgs::SolidPrimitive::SPHERE:
-            shape = make_unique<SphereShape>(
+            shape = make_unique1<SphereShape>(
                     prim.dimensions[shape_msgs::SolidPrimitive::SPHERE_RADIUS]);
             break;
         case shape_msgs::SolidPrimitive::CYLINDER:
-            shape = make_unique<CylinderShape>(
+            shape = make_unique1<CylinderShape>(
                     prim.dimensions[shape_msgs::SolidPrimitive::CYLINDER_RADIUS],
                     prim.dimensions[shape_msgs::SolidPrimitive::CYLINDER_HEIGHT]);
             break;
         case shape_msgs::SolidPrimitive::CONE:
-            shape = make_unique<ConeShape>(
+            shape = make_unique1<ConeShape>(
                     prim.dimensions[shape_msgs::SolidPrimitive::CONE_RADIUS],
                     prim.dimensions[shape_msgs::SolidPrimitive::CONE_HEIGHT]);
             break;
@@ -226,7 +226,7 @@ bool CollisionSpaceScene::AddCollisionObjectMsg(
         shapes.push_back(m_collision_shapes.back().get());
 
         auto& prim_pose = object.primitive_poses[i];
-        Eigen::Affine3d transform;
+        Eigen::Isometry3d transform;
         tf::poseMsgToEigen(prim_pose, transform);
         shape_poses.push_back(transform);
     }
@@ -234,13 +234,13 @@ bool CollisionSpaceScene::AddCollisionObjectMsg(
     for (size_t i = 0; i < object.planes.size(); ++i) {
         auto& plane = object.planes[i];
 
-        auto shape = make_unique<PlaneShape>(
+        auto shape = make_unique1<PlaneShape>(
                 plane.coef[0], plane.coef[1], plane.coef[2], plane.coef[3]);
         m_collision_shapes.push_back(std::move(shape));
         shapes.push_back(m_collision_shapes.back().get());
 
         auto& plane_pose = object.plane_poses[i];
-        Eigen::Affine3d transform;
+        Eigen::Isometry3d transform;
         tf::poseMsgToEigen(plane_pose, transform);
         shape_poses.push_back(transform);
     }
@@ -251,13 +251,13 @@ bool CollisionSpaceScene::AddCollisionObjectMsg(
         assert(0); // TODO: implement
 
         auto& mesh_pose = object.mesh_poses[i];
-        Eigen::Affine3d transform;
+        Eigen::Isometry3d transform;
         tf::poseMsgToEigen(mesh_pose, transform);
         shape_poses.push_back(transform);
     }
-
+    
     // create the collision object
-    auto co = make_unique<CollisionObject>();
+    auto co = make_unique1<CollisionObject>();
     co->id = object.id;
     co->shapes = std::move(shapes);
     co->shape_poses = std::move(shape_poses);
@@ -359,12 +359,12 @@ bool CollisionSpaceScene::ProcessOctomapMsg(
 
     std::unique_ptr<octomap::OcTree> ot(tree);
 
-    auto shape = make_unique<OcTreeShape>(ot.get());
+    auto shape = make_unique1<OcTreeShape>(ot.get());
 
-    Eigen::Affine3d transform;
+    Eigen::Isometry3d transform;
     tf::poseMsgToEigen(octomap.origin, transform);
 
-    auto object = make_unique<CollisionObject>();
+    auto object = make_unique1<CollisionObject>();
     object->id = octomap.octomap.id;
     object->shapes.push_back(shape.get());
     object->shape_poses.push_back(transform);

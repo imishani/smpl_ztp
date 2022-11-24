@@ -17,7 +17,7 @@
     <depend>sbpl_kdl_robot_model</depend>
     <depend>smpl</depend>
     <depend>smpl_ros</depend>
-    <depend>smpl_moveit_interface</depend>
+<!--    <depend>smpl_moveit_interface</depend>-->
     <depend>moveit_ros_planning</depend>
     <depend>moveit_ros_planning_interface</depend>
     <depend>trajectory_msgs</depend>

@@ -4,6 +4,7 @@ project(smpl_ztp)
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 #######################
 # Import dependencies #
@@ -22,7 +23,8 @@ find_package(
         roscpp
         sbpl_kdl_robot_model
         smpl_ros
-        smpl_moveit_interface
+        # smpl_moveit_interface
+        sbpl_collision_checking
         moveit_ros_planning
         moveit_ros_planning_interface
         trajectory_msgs
@@ -54,7 +56,8 @@ add_library(
     src/graph/workspace_lattice_zero.cpp
     src/heuristic/workspace_dist_heuristic.cpp
     src/search/arastar_zero.cpp
-    src/ros/zero_time_planner.cpp)
+    src/ros/zero_time_planner.cpp
+    src/planner/moveit_robot_model.cpp)
 
 target_compile_options(smpl_ztp PUBLIC -std=c++11)
 

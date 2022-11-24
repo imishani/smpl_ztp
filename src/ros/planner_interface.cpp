@@ -716,7 +716,7 @@ bool PlannerInterface::setGoalConfiguration(
     if (m_fk_iface) {
         goal.pose = m_fk_iface->computeFK(goal.angles);
     } else {
-        goal.pose = Eigen::Affine3d::Identity();
+        goal.pose = Eigen::Isometry3d::Identity();
     }
 
     // set sbpl environment goal
@@ -1167,7 +1167,7 @@ bool PlannerInterface::fillGoalPositionConstraint(
     const moveit_msgs::Constraints& goal_constraints,
     GoalConstraint& goal)
 {
-    Eigen::Affine3d goal_pose;
+    Eigen::Isometry3d goal_pose;
     Eigen::Vector3d offset;
     if (!extractGoalPoseFromGoalConstraints(
             goal_constraints, goal_pose, offset))
@@ -1202,7 +1202,7 @@ bool PlannerInterface::fillGoalPositionConstraint(
 
 bool PlannerInterface::extractGoalPoseFromGoalConstraints(
     const moveit_msgs::Constraints& constraints,
-    Eigen::Affine3d& goal_pose,
+    Eigen::Isometry3d& goal_pose,
     Eigen::Vector3d& offset) const
 {
     if (constraints.position_constraints.empty() ||
@@ -1226,7 +1226,7 @@ bool PlannerInterface::extractGoalPoseFromGoalConstraints(
     const geometry_msgs::Pose& primitive_pose = position_constraint.constraint_region.primitive_poses.front();
 
     // undo the translation
-    Eigen::Affine3d T_planning_eef = // T_planning_off * T_off_eef;
+    Eigen::Isometry3d T_planning_eef = // T_planning_off * T_off_eef;
             Eigen::Translation3d(
                     primitive_pose.position.x,
                     primitive_pose.position.y,

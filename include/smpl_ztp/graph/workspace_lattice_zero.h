@@ -41,6 +41,7 @@
 #include <boost/filesystem/fstream.hpp>
 #include <boost/serialization/vector.hpp>
 #include <set>
+#include <random>
 
 // system includes
 #include <ros/ros.h>
@@ -101,7 +102,7 @@ public:
     // ///@}
 
     // used in Workspace Distance heuristic
-    bool projectToPose(int state_id, Eigen::Affine3d& pose) override;
+    bool projectToPose(int state_id, Eigen::Isometry3d& pose) override;
 
     // just a copy to call this class's isGoal
     bool extractPath(
