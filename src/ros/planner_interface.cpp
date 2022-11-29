@@ -582,7 +582,7 @@ bool PlannerInterface::solveZero(
         dynamic_cast<ARAStarZero*>(planner2.get())));
 
     m_zero_planner->setStartAndGoal(initial_positions, goal);
-
+    ROS_INFO("Set dtart and goal");
     auto task_space_ = dynamic_cast<WorkspaceLatticeZero*>(task_space.get());
 
     std::vector<RobotState> path;

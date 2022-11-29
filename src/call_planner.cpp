@@ -422,16 +422,16 @@ auto SetupMoveItRobotModel(const std::string& urdf, const RobotModelConfig &conf
     ROS_INFO("Construct Generic MoveIt Robot Model");
     rm.reset(new sbpl_interface::MoveItRobotModel);
 
-    ROS_INFO("Initialize PR2 MoveIt Robot Model");
+    ROS_INFO("Initialize UR10 MoveIt Robot Model");
 
     std::vector<std::string> redundant_joints;
-    redundant_joints.emplace_back("r_shoulder_pan_joint");
-    auto joint_group = robot_model->getJointModelGroup("right_arm");
-    joint_group->setRedundantJoints(redundant_joints);
+    ROS_INFO("Ini Manipulator");
+    auto joint_group = robot_model->getJointModelGroup("manipulator");
 
+    ROS_INFO("Init Manipulator");
     if (!rm->init(
             robot_model,
-            "right_arm"))
+            "manipulator")) // right_arm
     {
         ROS_ERROR("Failed to initialize robot model.");
         rm.reset();
@@ -466,6 +466,7 @@ int main(int argc, char* argv[])
     ros::NodeHandle nh;
     ros::NodeHandle ph("~");
 
+    ROS_INFO("Initialize visualizer");
     smpl::VisualizerROS visualizer(nh, 100);
     smpl::viz::set_visualizer(&visualizer);
 
@@ -475,7 +476,10 @@ int main(int argc, char* argv[])
     /////////////////
     // Robot Model //
     /////////////////
+    ROS_INFO("Load common parameters");
 
+    // Robot description required to initialize collision checker and robot
+    // model...
     const char *robot_description_key = "robot_description";
     std::string robot_description_param;
     if (!nh.searchParam(robot_description_key, robot_description_param)) {
@@ -503,10 +507,6 @@ int main(int argc, char* argv[])
         return 1;
     }
     auto rm = SetupMoveItRobotModel(urdf, robot_config, robot_model);
-//    if (!rm) {
-//        ROS_ERROR("Failed to set up Robot Model");
-//        return 1;
-//    }
 
     ////////////////////
     // Occupancy Grid //
@@ -602,7 +602,7 @@ int main(int argc, char* argv[])
 
     cc.setWorldToModelTransform(Eigen::Isometry3d::Identity());
 
-    SV_SHOW_INFO(grid.getDistanceFieldVisualization(0.2));
+//    SV_SHOW_INFO(grid.getDistanceFieldVisualization(0.2));
 
 #ifdef KDL
     // The KDL Robot Model must be given the transform from the planning frame
@@ -687,6 +687,7 @@ int main(int argc, char* argv[])
 
     FillGoalJointConstraint(goal_state, req.goal_constraints[0]);
 #endif
+
     req.group_name = robot_config.group_name;
     req.max_acceleration_scaling_factor = 1.0;
     req.max_velocity_scaling_factor = 1.0;
@@ -701,12 +702,12 @@ int main(int argc, char* argv[])
     ROS_INFO("Calling solve...");
     moveit_msgs::PlanningScene planning_scene;
     planning_scene.robot_state = start_state;
-    bool query = false;
-    if (!nh.getParam("query", query)) {
-        ROS_ERROR("Failed to read 'query' from the param server");
-        return 1;
-    }
-    // bool query = true;
+//    bool query = false;
+//    if (!nh.getParam("query", query)) {
+//        ROS_ERROR("Failed to read 'query' from the param server");
+//        return 1;
+//    }
+    bool query = true;
     if (!planner.solveZero(planning_scene, req, res, query)) {
         ROS_ERROR("Failed to plan.");
         return 1;

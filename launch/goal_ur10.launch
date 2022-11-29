@@ -1,0 +1,51 @@
+<launch>
+    <arg name="debug" default="false"/>
+
+    <param name="robot_description" command="$(find xacro)/xacro '$(find ur_description)/urdf/ur10.xacro'"/>
+
+    <arg unless="$(arg debug)" name="launch-prefix" value=""/>
+    <arg     if="$(arg debug)" name="launch-prefix" value="xterm -e gdb --args"/> <!--    gdb ex -args -->
+
+    <rosparam command="load" file="$(find smpl_ztp)/config/ztp_params_ur10.yaml"/>
+
+    <node pkg="smpl_ztp" type="call_planner_ztp" name="call_planner"
+          launch-prefix="$(arg launch-prefix)">
+        <param name="planning_frame" value="odom_combined"/> <!-- base_link -->
+
+        <!-- 1. robot model (for planning) -->
+        <rosparam param="robot_model">
+            group_name: manipulator
+            planning_joints:
+                shoulder_pan_joint
+                shoulder_lift_joint
+                elbow_joint
+                wrist_1_joint
+                wrist_2_joint
+                wrist_3_joint
+            kinematics_frame:
+                base_link_inertia
+            chain_tip_link:
+                tool0
+<!--                wrist_3_link-->
+        </rosparam>
+
+        <!-- collision checking -->
+        <rosparam command="load" file="$(find sbpl_collision_checking_test)/config/collision_model_ur10.yaml"/>
+
+        <!-- planner params -->
+        <rosparam command="load" file="$(find smpl_test)/config/ur10_arm.yaml"/>
+        <param name="planning/mprim_filename" value="$(find smpl_ztp)/config/pr2.mprim"/>
+
+        <!-- 2. scene -->
+        <!-- 2.1 robot state -->
+        <rosparam command="load" file="$(find smpl_test)/experiments/ur10_goal.yaml"/>
+
+        <!-- 2.2 world state -->
+        <param name="object_filename" value="$(find smpl_ztp)/env/tabletop.env"/>
+
+        <!-- 3. scenario -->
+
+    </node>
+
+</launch>
+
