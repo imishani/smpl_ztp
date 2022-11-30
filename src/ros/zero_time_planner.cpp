@@ -30,8 +30,8 @@
 /// \author Fahad Islam
 
 // standard includes
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 
 // system includes
 #include <Eigen/Dense>
@@ -118,7 +118,7 @@ auto GetCollisionObjects(
 
     FILE* fCfg = fopen(filename.c_str(), "r");
 
-    if (fCfg == NULL) {
+    if (fCfg == nullptr) {
         ROS_INFO("ERROR: unable to open objects file. Exiting.\n");
         return objs;
     }
@@ -139,7 +139,7 @@ auto GetCollisionObjects(
         if (fscanf(fCfg,"%s",sTemp) < 1) {
             printf("Parsed string has length < 1.\n");
         }
-        object_ids.push_back(sTemp);
+        object_ids.emplace_back(sTemp);
 
         objects[i].resize(6);
         for (int j=0; j < 6; ++j)
@@ -199,11 +199,11 @@ void ZeroTimePlanner::setStartAndGoal(
 
 void ZeroTimePlanner::InitMoveitOMPL()
 {
-    m_group.reset(new moveit::planning_interface::MoveGroupInterface("right_arm"));
+    m_group.reset(new moveit::planning_interface::MoveGroupInterface("manipulator")); //right_arm
     ROS_INFO("Planning path with OMPL");
 
     // Collision objects
-    auto object_filename = "/usr0/home/fi/smpl_ws/src/smpl_ztp/env/tabletop.env";
+    auto object_filename = "~/work/code/ros/assembly_ws/src/smpl_ztp/env/tabletop.env";
     auto objects = GetCollisionObjects(object_filename, m_group->getPlanningFrame());
     std::vector<moveit_msgs::CollisionObject> collision_objects;
 
@@ -233,11 +233,11 @@ bool ZeroTimePlanner::PlanPathFromStartToAttractorOMPL(const RobotState& attract
     // tf::poseEigenToMsg(m_goal.pose, target_pose);
     // m_group->setPoseTarget(target_pose);
     robot_state::RobotState goal_state(*m_group->getCurrentState());
-    goal_state.setJointGroupPositions("right_arm", attractor);
+    goal_state.setJointGroupPositions("manipulator", attractor);    // right_arm
     m_group->setJointValueTarget(goal_state);
 
     robot_state::RobotState start_state(*m_group->getCurrentState());
-    start_state.setJointGroupPositions("right_arm", m_start_state);
+    start_state.setJointGroupPositions("manipulator", m_start_state);   // right_arm
     m_group->setStartState(start_state);
 
     // plan
@@ -512,9 +512,11 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
 {
     // for pose goal
     if (m_goal.type == GoalType::XYZ_RPY_GOAL) {
+        ROS_INFO("Goal is in task space, looking for IK solution..");
         m_task_space->SearchForValidIK(m_goal, m_goal.angles);
     }
 
+    ROS_INFO("Updating search mode");
     m_task_space->UpdateSearchMode(QUERY);
 
     // start -> actual goal
@@ -531,9 +533,10 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
     }
 #endif
     auto now = clock::now();
+    ROS_INFO("Looking for region containing start state");
     int reg_idx = m_task_space->FindRegionContainingState(start_state);
     auto find_time = to_seconds(clock::now() - now);
-    // ROS_INFO("FIND TIME %f", find_time);
+    ROS_INFO("FIND TIME %f", find_time);
     // getchar();
 
     if (reg_idx == -1) {
@@ -649,7 +652,9 @@ void ZeroTimePlanner::WriteRegions()
     });
 
 	ROS_INFO("Writing regions to file");
-    boost::filesystem::path myFile = boost::filesystem::current_path() / "myfile.dat";
+
+    boost::filesystem::path myFile = "/home/itamar/work/code/ros/assembly_ws/src/smpl_ztp/src/ros/myfile.dat"; //boost::filesystem::current_path() /
+    std::cout << myFile;
     boost::filesystem::ofstream ofs(myFile);
     boost::archive::text_oarchive ta(ofs);
     ta << m_regions;
@@ -660,7 +665,7 @@ void ZeroTimePlanner::ReadRegions()
 	ROS_INFO("Reading regions from file");
     // getchar();
     try {
-        boost::filesystem::path myFile = boost::filesystem::current_path() / "myfile.dat";
+        boost::filesystem::path myFile = "/home/itamar/work/code/ros/assembly_ws/src/smpl_ztp/src/ros/myfile.dat"; // boost::filesystem::current_path() /
         boost::filesystem::ifstream ifs(myFile/*.native()*/);
         boost::archive::text_iarchive ta(ifs);
         ta >> m_regions;

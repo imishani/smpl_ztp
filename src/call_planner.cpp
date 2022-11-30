@@ -171,7 +171,7 @@ auto GetCollisionObjects(
 
     FILE* fCfg = fopen(filename.c_str(), "r");
 
-    if (fCfg == NULL) {
+    if (fCfg == nullptr) { //NULL
         ROS_INFO("ERROR: unable to open objects file. Exiting.\n");
         return objs;
     }
@@ -192,7 +192,7 @@ auto GetCollisionObjects(
         if (fscanf(fCfg,"%s",sTemp) < 1) {
             printf("Parsed string has length < 1.\n");
         }
-        object_ids.push_back(sTemp);
+        object_ids.emplace_back(sTemp);
 
         objects[i].resize(6);
         for (int j=0; j < 6; ++j)
@@ -425,10 +425,8 @@ auto SetupMoveItRobotModel(const std::string& urdf, const RobotModelConfig &conf
     ROS_INFO("Initialize UR10 MoveIt Robot Model");
 
     std::vector<std::string> redundant_joints;
-    ROS_INFO("Ini Manipulator");
     auto joint_group = robot_model->getJointModelGroup("manipulator");
 
-    ROS_INFO("Init Manipulator");
     if (!rm->init(
             robot_model,
             "manipulator")) // right_arm
@@ -707,7 +705,7 @@ int main(int argc, char* argv[])
 //        ROS_ERROR("Failed to read 'query' from the param server");
 //        return 1;
 //    }
-    bool query = true;
+    bool query = false;
     if (!planner.solveZero(planning_scene, req, res, query)) {
         ROS_ERROR("Failed to plan.");
         return 1;

@@ -1,7 +1,7 @@
 <launch>
     <arg name="debug" default="false"/>
-
-    <param name="robot_description" command="$(find xacro)/xacro '$(find ur_description)/urdf/ur10.xacro'"/>
+<!--    If running UR10 already, then there is no need to load the URDF again.. else, uncomment the line:-->
+<!--    <param name="robot_description" command="$(find xacro)/xacro '$(find ur_description)/urdf/ur10_robotiq85_gripper.xacro'"/>-->
 
     <arg unless="$(arg debug)" name="launch-prefix" value=""/>
     <arg     if="$(arg debug)" name="launch-prefix" value="xterm -e gdb --args"/> <!--    gdb ex -args -->
@@ -23,9 +23,9 @@
                 wrist_2_joint
                 wrist_3_joint
             kinematics_frame:
-                base_link_inertia
+                base_link
             chain_tip_link:
-                tool0
+                flange
 <!--                wrist_3_link-->
         </rosparam>
 
