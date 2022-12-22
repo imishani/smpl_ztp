@@ -559,7 +559,7 @@ int main(int argc, char* argv[])
         ROS_ERROR("Failed to load Collision Model Config");
         return 1;
     }
-
+    std::cout << cc_conf.spheres_models << std::endl;
     smpl::collision::CollisionSpace cc;
     if (!cc.init(&grid, urdf, cc_conf, robot_config.group_name, robot_config.planning_joints)) {
         ROS_ERROR("Failed to initialize Collision Space");
@@ -575,7 +575,6 @@ int main(int argc, char* argv[])
     /////////////////
 
     scene.SetCollisionSpace(&cc);
-
     std::string object_filename;
     ph.param<std::string>("object_filename", object_filename, "");
 
@@ -586,20 +585,20 @@ int main(int argc, char* argv[])
             scene.ProcessCollisionObjectMsg(object);
         }
     }
-
+    std::cout << cc_conf.spheres_models << std::endl;
     // read in start state from file and update the scene
     moveit_msgs::RobotState start_state;
     if (!ReadInitialConfiguration(ph, start_state)) {
         ROS_ERROR("Failed to get initial configuration.");
         return 1;
     }
+    std::cout << cc_conf.spheres_models << std::endl;
     if (!scene.SetRobotState(start_state)) {
         ROS_ERROR("Failed to set start state on Collision Space Scene");
         return 1;
     }
-
+    std::cout << cc_conf.spheres_models << std::endl;
     cc.setWorldToModelTransform(Eigen::Isometry3d::Identity());
-
 //    SV_SHOW_INFO(grid.getDistanceFieldVisualization(0.2));
 
 #ifdef KDL

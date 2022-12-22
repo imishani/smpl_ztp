@@ -203,7 +203,7 @@ void ZeroTimePlanner::InitMoveitOMPL()
     ROS_INFO("Planning path with OMPL");
 
     // Collision objects
-    auto object_filename = "~/work/code/ros/assembly_ws/src/smpl_ztp/env/tabletop.env";
+    auto object_filename = "/home/itamar/work/code/ros/assembly_ws/src/smpl_ztp/env/tabletop.env";
     auto objects = GetCollisionObjects(object_filename, m_group->getPlanningFrame());
     std::vector<moveit_msgs::CollisionObject> collision_objects;
 

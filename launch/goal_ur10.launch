@@ -10,7 +10,7 @@
 
     <node pkg="smpl_ztp" type="call_planner_ztp" name="call_planner"
           launch-prefix="$(arg launch-prefix)">
-        <param name="planning_frame" value="odom_combined"/> <!-- base_link -->
+        <param name="planning_frame" value="base_link"/> <!-- odom_combined -->
 
         <!-- 1. robot model (for planning) -->
         <rosparam param="robot_model">
