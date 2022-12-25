@@ -1,0 +1,13 @@
+smpl_ztp/robot_model/group_name: manipulator
+smpl_ztp/robot_model/planning_joints:
+  shoulder_pan_joint
+  shoulder_lift_joint
+  elbow_joint
+  wrist_1_joint
+  wrist_2_joint
+  wrist_3_joint
+smpl_ztp/robot_model/kinematics_frame:
+  base_link
+smpl_ztp/robot_model/chain_tip_link:
+  flange
+smpl_ztp/planning_frame: base_link

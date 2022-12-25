@@ -424,7 +424,7 @@ auto SetupMoveItRobotModel(const std::string& urdf, const RobotModelConfig &conf
 
     ROS_INFO("Initialize UR10 MoveIt Robot Model");
 
-    std::vector<std::string> redundant_joints;
+//    std::vector<std::string> redundant_joints; UR10 has no redundant joints
     auto joint_group = robot_model->getJointModelGroup("manipulator");
 
     if (!rm->init(
@@ -456,6 +456,18 @@ void initAllowedCollisionsPR2(smpl::collision::CollisionSpace &cspace)
         acm.setEntry(pair.first, pair.second, true);
     }
     cspace.setAllowedCollisionMatrix(acm);
+}
+
+
+void SetJoints(moveit_msgs::RobotState &state,
+               smpl::collision::CollisionSpace &cspace){
+    int j {0};
+    for (auto& joint : state.joint_state.name) {
+        ROS_INFO("Joint: %s", joint.c_str());
+        cspace.setJointPosition(joint, state.joint_state.position[j]);
+        cspace.m_rcs->setJointVarPosition(joint, state.joint_state.position[j]);
+        ++j;
+    }
 }
 
 int main(int argc, char* argv[])
@@ -496,7 +508,8 @@ int main(int argc, char* argv[])
         ROS_ERROR("Failed to read robot model config from param server");
         return 1;
     }
-
+    // Instantiate a RobotModelLoader pointer object which will look up the robot description
+    // on the parameter server and construct a RobotModel object for us to use.
     auto robot_loader = boost::make_shared<robot_model_loader::RobotModelLoader>(
             "robot_description", true);
     auto robot_model = robot_loader->getModel();
@@ -555,11 +568,11 @@ int main(int argc, char* argv[])
     CollisionSpaceScene scene;
 
     smpl::collision::CollisionModelConfig cc_conf;
-    if (!smpl::collision::CollisionModelConfig::Load(ph, cc_conf)) {
+    if (!smpl::collision::CollisionModelConfig::Load(ph, cc_conf)) { // need to make it automatic to read from moveit
         ROS_ERROR("Failed to load Collision Model Config");
         return 1;
     }
-    std::cout << cc_conf.spheres_models << std::endl;
+
     smpl::collision::CollisionSpace cc;
     if (!cc.init(&grid, urdf, cc_conf, robot_config.group_name, robot_config.planning_joints)) {
         ROS_ERROR("Failed to initialize Collision Space");
@@ -576,7 +589,7 @@ int main(int argc, char* argv[])
 
     scene.SetCollisionSpace(&cc);
     std::string object_filename;
-    ph.param<std::string>("object_filename", object_filename, "");
+    ph.param<std::string>("/object_filename", object_filename, "");
 
     // read in collision objects from file and add to the scene
     if (!object_filename.empty()) {
@@ -585,19 +598,29 @@ int main(int argc, char* argv[])
             scene.ProcessCollisionObjectMsg(object);
         }
     }
-    std::cout << cc_conf.spheres_models << std::endl;
+
     // read in start state from file and update the scene
     moveit_msgs::RobotState start_state;
     if (!ReadInitialConfiguration(ph, start_state)) {
         ROS_ERROR("Failed to get initial configuration.");
         return 1;
     }
-    std::cout << cc_conf.spheres_models << std::endl;
+
+    // TODO: Do I need to update here the robot_model (rm)?
+//    moveit::core::RobotStatePtr robot_state_(new moveit::core::RobotState(robot_model));
+////    robot_state->setVariablePosition(start_state);
+//    robot_state_->setJointGroupPositions(
+//            robot_model->getJointModelGroup(robot_config.group_name),
+//            start_state.joint_state.position);
+//    rm->updateReferenceState(*robot_state_);
+
+    SetJoints(start_state, cc); // Update collision to start state
+
     if (!scene.SetRobotState(start_state)) {
         ROS_ERROR("Failed to set start state on Collision Space Scene");
         return 1;
     }
-    std::cout << cc_conf.spheres_models << std::endl;
+
     cc.setWorldToModelTransform(Eigen::Isometry3d::Identity());
 //    SV_SHOW_INFO(grid.getDistanceFieldVisualization(0.2));
 

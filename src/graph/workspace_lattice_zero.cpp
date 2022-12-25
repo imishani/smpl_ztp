@@ -312,7 +312,7 @@ int WorkspaceLatticeZero::SampleAttractorState(
         WorkspaceCoord workspace_coord;
         stateRobotToWorkspace(joint_state, workspace_state);
         stateWorkspaceToCoord(workspace_state, workspace_coord);
-        int attractor_state_id = createState(workspace_coord);
+        attractor_state_id = createState(workspace_coord);
 
         if (IsStateCovered(true, attractor_state_id)) {
             SMPL_DEBUG_NAMED("graph", "State is covered already on try %d", count);

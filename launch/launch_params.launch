@@ -1,0 +1,13 @@
+<launch>
+    <rosparam command="load" file="$(find smpl_ztp)/config/ztp_params_ur10.yaml"/>
+    <rosparam command="load" file="$(find sbpl_collision_checking_test)/config/collision_model_ur10.yaml"/>
+    <rosparam command="load" file="$(find smpl_ztp)/config/params.yaml"/>
+    <param name="object_filename" value="$(find smpl_ztp)/env/tabletop.env"/>
+    <group ns="smpl_ztp">
+        <rosparam command="load" file="$(find smpl_test)/config/ur10_arm.yaml"/>
+        <param name="planning/mprim_filename" value="$(find smpl_ztp)/config/pr2.mprim"/>
+        <rosparam command="load" file="$(find smpl_test)/experiments/ur10_goal.yaml"/>
+    </group>
+</launch>
+
+
