@@ -239,7 +239,7 @@ bool ZeroTimePlanner::PlanPathFromStartToAttractorOMPL(const RobotState& attract
     robot_state::RobotState start_state(*m_group->getCurrentState());
     start_state.setJointGroupPositions("manipulator", m_start_state);   // right_arm
     m_group->setStartState(start_state);
-
+    ROS_INFO_STREAM(m_group->getName());
     // plan
     ROS_INFO("Going to plan!");
     moveit::planning_interface::MoveGroupInterface::Plan my_plan;
@@ -411,7 +411,6 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
 
                 // reinitialize the search space
                 m_planner_zero->force_planning_from_scratch();
-
                 // reachability search
                 int radius = m_planner_zero->compute_reachability(radius_max_v, attractor_state_id);
 
@@ -424,7 +423,13 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
                 m_regions.push_back(r);
 
                 ROS_INFO("Radius %d, Regions so far %zu", radius, m_regions.size());
-
+                ROS_INFO("Path size: %zu", r.path.size());
+                // ROS_INFO m_regions:
+                for (auto& r : m_regions) {
+                    for (auto& v : r.state) {
+                        std::cout << v << " ";
+                    }
+                }
                 // if (radius == 336) {
                 //     printf("stop\n");
                 //     getchar();
@@ -525,6 +530,9 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
     RobotState start_state;
 
     start_state = m_goal.angles;
+    for (double angle : start_state) {
+        ROS_INFO("Start state: %f", angle);
+    }
 
 #if 1
     if (!m_task_space->IsRobotStateInGoalRegion(start_state)) {

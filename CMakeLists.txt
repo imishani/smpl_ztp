@@ -75,7 +75,7 @@ target_link_libraries(smpl_ztp PUBLIC ${SBPL_LIBRARIES})
 # Build call_planner_ztp test program #
 #######################################
 
-add_executable(call_planner_ztp src/call_planner.cpp src/ros/planner_interface.cpp src/collision_space_scene.cpp)
+add_executable(call_planner_ztp src/call_planner.cpp src/ros/planner_interface.cpp src/collision_space_scene.cpp)    # src/ros/planner_interface.cpp
 
 target_compile_options(smpl_ztp PUBLIC -std=c++11)
 

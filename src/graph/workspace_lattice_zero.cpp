@@ -48,6 +48,11 @@
 #include <smpl/heuristic/robot_heuristic.h>
 #include <smpl/graph/workspace_lattice_action_space.h>
 
+#include <moveit/robot_model_loader/robot_model_loader.h>
+#include <moveit/robot_state/robot_state.h>
+#include <moveit/robot_model/robot_model.h>
+#include <tf/tf.h>
+
 #define tie_breaking
 
 namespace smpl {
@@ -364,6 +369,53 @@ bool WorkspaceLatticeZero::SampleRobotState(RobotState& joint_state)
         SMPL_DEBUG_NAMED("graph", "Unable to sample robot state: Invalid IK");
         return false;
     }
+    /// Testing if the IK solution is true:
+    robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
+    const moveit::core::RobotModelPtr& kinematic_model = robot_model_loader.getModel();
+    moveit::core::RobotStatePtr kinematic_state(new robot_state::RobotState(kinematic_model));
+
+    const moveit::core::JointModelGroup* joint_model_group = kinematic_model->getJointModelGroup("manipulator");
+
+    double timeout = 0.1;
+
+    Isometry3 pose;
+    pose = Eigen::Translation3d(workspace_state[0], workspace_state[1], workspace_state[2]) *
+           Eigen::AngleAxisd(workspace_state[5], Eigen::Vector3d::UnitZ()) *
+           Eigen::AngleAxisd(workspace_state[4], Eigen::Vector3d::UnitY()) *
+           Eigen::AngleAxisd(workspace_state[3], Eigen::Vector3d::UnitX());
+
+    bool found_ik = kinematic_state->setFromIK(joint_model_group, pose, timeout);
+
+//    std::vector<double> joint_values;
+    if (found_ik){
+        kinematic_state->copyJointGroupPositions(joint_model_group, joint_state);
+        for (std::size_t i = 0; i < joint_state.size(); ++i)
+        {
+            SMPL_INFO("Joint %lu: %f", i, joint_state[i]);
+        }
+    }
+    else
+    {
+        SMPL_INFO("Did not find IK solution");
+    }
+
+    // Checking FK:
+    // kinematic_state.reset();
+    kinematic_state->setJointGroupPositions(joint_model_group, joint_state);
+    const Eigen::Isometry3d& end_effector_state = kinematic_state->getGlobalLinkTransform("flange");
+    std::vector<double> orientation(3);
+    auto position = end_effector_state.translation();
+    Eigen::Quaterniond q_(end_effector_state.rotation());
+    tf::Quaternion q(q_.x(), q_.y(), q_.z(), q_.w());
+    tf::Matrix3x3 m(q);
+    m.getRPY(orientation[0], orientation[1], orientation[2]);
+//    get_euler_zyx(end_effector_state.rotation(), orientation[2], orientation[1], orientation[0]);
+
+    SMPL_INFO("Position FK Moveit: %f %f %f", position[0], position[1], position[2]);
+    SMPL_INFO("Orientation FK Moveit: %f %f %f", orientation[0], orientation[1], orientation[2]);
+
+
+    /***********/
 
     // Collision check`
     if (!collisionChecker()->isStateValid(joint_state, true)) {
@@ -371,25 +423,35 @@ bool WorkspaceLatticeZero::SampleRobotState(RobotState& joint_state)
         return false;
     }
 
+    WorkspaceState workspace_state_FK;
+    stateRobotToWorkspace(joint_state, workspace_state_FK);
+
+    RobotState joint_states_deg;
+    for (int i = 0; i < joint_state.size(); ++i) {
+        joint_states_deg.push_back(smpl::to_degrees(joint_state[i]));
+    }
+
     SMPL_DEBUG_NAMED("graph", "Sampled State");
     SMPL_DEBUG_STREAM_NAMED("graph.expands", "    workspace state: " << workspace_state);
     SMPL_DEBUG_STREAM_NAMED("graph.expands", "    workspace coord: " << workspace_coord);
-    SMPL_DEBUG_STREAM_NAMED("graph.expands", "    joint state    : " << joint_state);
+    SMPL_DEBUG_STREAM_NAMED("graph.expands", "    joint state    : " << joint_states_deg);
+    SMPL_DEBUG_STREAM_NAMED("graph.expands", "    FK workspace state: " << workspace_state_FK);
 
     return true;
 }
 
 bool WorkspaceLatticeZero::SearchForValidIK(const GoalConstraint goal, std::vector<double>& angles)
 {
-    double fa_init = m_min_ws_limits[6]; // assuming there is only one redundant joint
-    std::vector<double> seed(6 + freeAngleCount());
-    for (double fa = fa_init; fa <= m_max_ws_limits[6]; ++fa) {
-        seed[6] = fa;
-        if (stateWorkspaceToRobot(goal.angles, seed, angles)) {
-            return true;
-        }
-    }
-    return false;
+    return !stateWorkspaceToRobot(goal.angles, angles);
+//    double fa_init = m_min_ws_limits[6];
+//    std::vector<double> seed(6 + freeAngleCount());
+//    for (double fa = fa_init; fa <= m_max_ws_limits[6]; ++fa) {
+//        seed[6] = fa;
+//        if (stateWorkspaceToRobot(goal.angles, seed, angles)) {
+//            return true;
+//        }
+//    }
+//    return false;
 }
 
 int WorkspaceLatticeZero::FindRegionContainingState(const RobotState& joint_state)
@@ -448,6 +510,9 @@ bool WorkspaceLatticeZero::IsRobotStateInGoalRegion(const RobotState& state)
     WorkspaceCoord coord;
     stateWorkspaceToCoord(workspace_state, coord);
     stateCoordToWorkspace(coord, workspace_state);
+    for (auto state_ : workspace_state) {
+        ROS_INFO("state %f", state_);
+    }
     return IsWorkspaceStateInGoalRegion(workspace_state);
 }
 

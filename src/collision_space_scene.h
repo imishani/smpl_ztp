@@ -17,12 +17,6 @@ class CollisionSpaceScene
 {
 public:
 
-//    struct CollisionObject2 {
-//        std::string id;
-//        std::vector<CollisionShape*> shapes;
-//        AlignedVector<Eigen::Isometry3d> shape_poses;
-//    };
-
     void SetCollisionSpace(smpl::collision::CollisionSpace* cspace);
 
     bool SetRobotState(const moveit_msgs::RobotState& robot_state);

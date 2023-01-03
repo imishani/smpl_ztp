@@ -1,17 +1,28 @@
 <launch>
     <arg name="debug" default="false"/>
+    <arg name="query" default="true"/>
 <!--    If running UR10 already, then there is no need to load the URDF again.. else, uncomment the line:-->
 <!--    <param name="robot_description" command="$(find xacro)/xacro '$(find ur_description)/urdf/ur10_robotiq85_gripper.xacro'"/>-->
 
     <arg unless="$(arg debug)" name="launch-prefix" value=""/>
     <arg     if="$(arg debug)" name="launch-prefix" value="xterm -e gdb --args"/> <!--    gdb ex -args -->
 
+
     <rosparam command="load" file="$(find smpl_ztp)/config/ztp_params_ur10.yaml"/>
+
+
+    <!-- 2.2 world state -->
+    <param name="object_filename" value="$(find smpl_ztp)/env/tabletop.env"/>
+
+    <!-- collision checking -->
+    <rosparam command="load" file="$(find sbpl_collision_checking_test)/config/collision_model_ur10.yaml"/>
+
 
     <node pkg="smpl_ztp" type="call_planner_ztp" name="call_planner"
           launch-prefix="$(arg launch-prefix)">
         <param name="planning_frame" value="base_link"/> <!-- odom_combined -->
-
+        <rosparam unless="$(arg query)" param="query"> false </rosparam>
+        <rosparam if="$(arg query)" param="query"> true </rosparam>
         <!-- 1. robot model (for planning) -->
         <rosparam param="robot_model">
             group_name: manipulator
@@ -29,19 +40,14 @@
 <!--                wrist_3_link-->
         </rosparam>
 
-        <!-- collision checking -->
-        <rosparam command="load" file="$(find sbpl_collision_checking_test)/config/collision_model_ur10.yaml"/>
 
         <!-- planner params -->
         <rosparam command="load" file="$(find smpl_test)/config/ur10_arm.yaml"/>
-        <param name="planning/mprim_filename" value="$(find smpl_ztp)/config/pr2.mprim"/>
+        <param name="planning/mprim_filename" value="$(find smpl_ztp)/config/ur10.mprim"/>
 
         <!-- 2. scene -->
         <!-- 2.1 robot state -->
         <rosparam command="load" file="$(find smpl_test)/experiments/ur10_goal.yaml"/>
-
-        <!-- 2.2 world state -->
-        <param name="object_filename" value="$(find smpl_ztp)/env/tabletop.env"/>
 
         <!-- 3. scenario -->
 

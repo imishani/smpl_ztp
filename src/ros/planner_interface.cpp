@@ -100,6 +100,7 @@ auto MakeWorkspaceLatticeZero(
     wsp.res_x = grid->resolution();
     wsp.res_y = grid->resolution();
     wsp.res_z = grid->resolution();
+    // TODO: What is these magic numbers? make this a parameter
     wsp.R_count = 36; //72;
     wsp.P_count = 18 + 1; //36 + 1;
     wsp.Y_count = 36; //72;
@@ -501,7 +502,7 @@ bool PlannerInterface::solveZero(
     psait = m_space_factories.find("workspace_zero");
     auto task_space = psait->second(m_robot, m_checker, m_params);
     if (!task_space) {
-        ROS_ERROR("Failed to build manip space");
+        ROS_ERROR("Failed to build workspace");
         return false;
     }
 
@@ -1116,6 +1117,7 @@ bool PlannerInterface::fillStartState(
             missing))
     {
         ROS_ERROR("start state is missing planning joints: ");
+//        SMPL_WARN_STREAM("start state is missing planning joints: " << missing);
         return false;
     }
     return true;
@@ -1195,7 +1197,7 @@ bool PlannerInterface::fillGoalPositionConstraint(
     ROS_INFO_NAMED(PI_LOGGER, "New Goal");
     double yaw, pitch, roll;
     angles::get_euler_zyx(goal.pose.rotation(), yaw, pitch, roll);
-    ROS_INFO_NAMED(PI_LOGGER, "    pose: (x: %0.3f, y: %0.3f, z: %0.3f, R: %0.3f, P: %0.3f, Y: %0.3f)", goal.pose.translation()[0], goal.pose.translation()[1], goal.pose.translation()[2], yaw, pitch, roll);
+    ROS_INFO_NAMED(PI_LOGGER, "    pose: (x: %0.3f, y: %0.3f, z: %0.3f, R: %0.3f, P: %0.3f, Y: %0.3f)", goal.pose.translation()[0], goal.pose.translation()[1], goal.pose.translation()[2], roll, pitch, yaw);
     ROS_INFO_NAMED(PI_LOGGER, "    tolerance: (dx: %0.3f, dy: %0.3f, dz: %0.3f, dR: %0.3f, dP: %0.3f, dY: %0.3f)", sbpl_tolerance[0], sbpl_tolerance[1], sbpl_tolerance[2], sbpl_tolerance[3], sbpl_tolerance[4], sbpl_tolerance[5]);
     return true;
 }
