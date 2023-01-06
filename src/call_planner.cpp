@@ -81,7 +81,7 @@ void FillGoalConstraint(
     goals.position_constraints[0].constraint_region.primitive_poses[0].position.z = pose[2];
 
     Eigen::Quaterniond q;
-    SMPL_INFO_STREAM("Rool, Pitch, Yaw: " << pose[3] << " " << pose[4] << " " << pose[5]);
+    SMPL_INFO_STREAM("Roll, Pitch, Yaw: " << pose[3] << " " << pose[4] << " " << pose[5]);
     smpl::from_euler_zyx(pose[5], pose[4], pose[3], q);
     tf::quaternionEigenToMsg(q, goals.orientation_constraints[0].orientation);
 
@@ -521,6 +521,7 @@ int main(int argc, char* argv[])
         return 1;
     }
     auto rm = SetupMoveItRobotModel(urdf, robot_config, robot_model);
+//    auto rm_kdl = SetupKDLRobotModel(urdf, robot_config);
 //    auto rm2 = SetupMoveItRobotModel(urdf, robot_config, robot_model, "gripper"); // Need to edit config files
     ////////////////////
     // Occupancy Grid //
@@ -565,7 +566,7 @@ int main(int argc, char* argv[])
     ///////////////////////
     // Collision Checker //
     ///////////////////////
-
+    ROS_INFO("Create collision checker");
     // This whole manage storage for all the scene objects and must outlive
     // its associated CollisionSpace instance.
     CollisionSpaceScene scene;
@@ -577,7 +578,8 @@ int main(int argc, char* argv[])
     }
 
     smpl::collision::CollisionSpace cc;
-    if (!cc.init(&grid, urdf, cc_conf, robot_config.group_name, robot_config.planning_joints)) {
+    if (!cc.init(&grid, urdf, cc_conf,
+                 robot_config.group_name, robot_config.planning_joints)) {
         ROS_ERROR("Failed to initialize Collision Space");
         return 1;
     }
@@ -592,7 +594,7 @@ int main(int argc, char* argv[])
 
     scene.SetCollisionSpace(&cc);
     std::string object_filename;
-    ph.param<std::string>("/object_filename", object_filename, "");
+    ph.param<std::string>("object_filename", object_filename, "");
 
     // read in collision objects from file and add to the scene
     if (!object_filename.empty()) {
@@ -618,6 +620,7 @@ int main(int argc, char* argv[])
 //    rm->updateReferenceState(*robot_state_);
 
     SetJoints(start_state, cc); // Update collision to start state
+
     if (!scene.SetRobotState(start_state)) {
         ROS_ERROR("Failed to set start state on Collision Space Scene");
         return 1;
@@ -637,14 +640,12 @@ int main(int argc, char* argv[])
     transform.rotation.w = 1.0;
     KDL::Frame f;
     tf::transformMsgToKDL(transform, f);
-    rm->setKinematicsToPlanningTransform(f, "what?");
+    rm_kdl->setKinematicsToPlanningTransform(f, "what?");
 #endif
 
     SV_SHOW_INFO(cc.getCollisionRobotVisualization());
     SV_SHOW_INFO(cc.getCollisionWorldVisualization());
     SV_SHOW_INFO(cc.getOccupiedVoxelsVisualization());
-
-    // return 0;
 
     ///////////////////
     // Planner Setup //
@@ -715,7 +716,7 @@ int main(int argc, char* argv[])
     req.max_velocity_scaling_factor = 1.0;
     req.num_planning_attempts = 1;
 //    req.path_constraints;
-    req.planner_id = "arastar.workspace_distance.workspace";
+    req.planner_id = "arastar.workspace_distance.workspace"; //"arastar.bfs.manip";
     req.start_state = start_state;
 //    req.trajectory_constraints;
 //    req.workspace_parameters;
@@ -731,6 +732,7 @@ int main(int argc, char* argv[])
 //        return 1;
 //    }
 //    bool query = false;
+
     if (!planner.solveZero(planning_scene, req, res, query)) {
         ROS_ERROR("Failed to plan.");
         return 1;

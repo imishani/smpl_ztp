@@ -172,6 +172,8 @@ public:
         const RobotState& full_start_state,
         const GoalConstraint& goal);
 
+    void getLimits();
+
     // valid/invalid uncovered frontier states
     std::set<WorkspaceLatticeState*> m_valid_front;
     std::set<WorkspaceLatticeState*> m_invalid_front;

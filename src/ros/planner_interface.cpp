@@ -576,24 +576,27 @@ bool PlannerInterface::solveZero(
     }
 
     ROS_INFO_NAMED(PI_LOGGER, "Initialized zero time planner");
+
     m_zero_planner.reset(new ZeroTimePlanner(
         dynamic_cast<ManipLattice*>(manip_space.get()),
         dynamic_cast<WorkspaceLatticeZero*>(task_space.get()),
         dynamic_cast<ARAStar*>(planner1.get()),
         dynamic_cast<ARAStarZero*>(planner2.get())));
 
+    m_zero_planner->getLimits();
+
     m_zero_planner->setStartAndGoal(initial_positions, goal);
+
     ROS_INFO("Set start and goal");
     auto task_space_ = dynamic_cast<WorkspaceLatticeZero*>(task_space.get());
 
     std::vector<RobotState> path;
-
     if (!query) {
         ROS_INFO("Preprocessing Start Region");
         m_zero_planner->PreProcess(initial_positions);
     }
     else {
-        int num_queries = 100;
+        int num_queries = 1;
         double total_time = 0.0;
         double best_time = 10000.0;
         double worst_time = 0.0;

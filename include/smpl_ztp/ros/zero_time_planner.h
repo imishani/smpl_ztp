@@ -76,6 +76,8 @@ public:
     void PreProcess(const RobotState& full_start_state);
     void Query(std::vector<RobotState>& path);
 
+    void getLimits();
+
 private:
 
     void InitMoveitOMPL();

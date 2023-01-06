@@ -354,6 +354,7 @@ bool ZeroTimePlanner::PlanPathFromStartToAttractorSMPL(const RobotState& attract
 
 void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
 {
+    m_task_space->getLimits();
     m_regions.clear();
     if (m_pp_planner != "ARAStar")
         InitMoveitOMPL();
@@ -425,11 +426,11 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
                 ROS_INFO("Radius %d, Regions so far %zu", radius, m_regions.size());
                 ROS_INFO("Path size: %zu", r.path.size());
                 // ROS_INFO m_regions:
-                for (auto& r : m_regions) {
-                    for (auto& v : r.state) {
-                        std::cout << v << " ";
-                    }
-                }
+//                for (auto& r : m_regions) {
+//                    for (auto& v : r.state) {
+//                        std::cout << v << " ";
+//                    }
+//                }
                 // if (radius == 336) {
                 //     printf("stop\n");
                 //     getchar();
@@ -530,9 +531,9 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
     RobotState start_state;
 
     start_state = m_goal.angles;
-    for (double angle : start_state) {
-        ROS_INFO("Start state: %f", angle);
-    }
+//    for (double angle : start_state) {
+//        ROS_INFO("Start state: %f", angle);
+//    }
 
 #if 1
     if (!m_task_space->IsRobotStateInGoalRegion(start_state)) {
@@ -546,7 +547,6 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
     auto find_time = to_seconds(clock::now() - now);
     ROS_INFO("FIND TIME %f", find_time);
     // getchar();
-
     if (reg_idx == -1) {
         ROS_ERROR("Query start state not covered");
         return;
@@ -626,12 +626,12 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
             ROS_ERROR("Non zero expansion delay");
             getchar();
         }
-
+        ROS_INFO("Extracting path");
         if (!m_task_space->extractPath(solution_state_ids, ztp_path)) {
             ROS_ERROR("Failed to convert state id path to joint variable path");
             return;
         }
-
+        ROS_INFO("Path extracted");
         path = m_regions[reg_idx].path;
 
         if (ztp_path.size() != 1) {
@@ -695,8 +695,15 @@ void ZeroTimePlanner::ReadRegions()
     // getchar();
 }
 
+void ZeroTimePlanner::getLimits() {
+    SMPL_DEBUG_NAMED("ZTPlanner", "Get limits");
+    m_task_space->getLimits();
+}
+
+
 ZeroTimePlanner::~ZeroTimePlanner()
 {
 }
+
 
 } // namespace smpl
