@@ -174,10 +174,23 @@ bool WorkspaceLatticeZero::projectToPose(int state_id, Eigen::Isometry3d& pose)
     return true;
 }
 
-const WorkspaceState& WorkspaceLatticeZero::extractState(int state_id)
+//const WorkspaceState& WorkspaceLatticeZero::extractState(int state_id)
+//{
+//    /* It returned workspace state but I changed it to retuen joint state value */
+//    stateCoordToWorkspace(m_states[state_id]->coord, m_workspace_state);
+////    RobotState* robot_state;
+////    stateWorkspaceToRobot(m_workspace_state, *robot_state);
+//    return m_workspace_state;
+////    return *robot_state;
+//}
+auto WorkspaceLatticeZero::extractState(int state_id) -> const RobotState&
 {
+//    stateCoordToRobot(m_states[state_id]->coord, m_joint_state);
+//    GetJointState(state_id, m_joint_state); // Check it
+        // normalize_euler_zyx(&workspace_state[3]);
     stateCoordToWorkspace(m_states[state_id]->coord, m_workspace_state);
-    return m_workspace_state;
+    stateWorkspaceToRobot(m_workspace_state, m_joint_state);
+    return m_joint_state;
 }
 
 void WorkspaceLatticeZero::GetPreds(
@@ -339,7 +352,7 @@ int WorkspaceLatticeZero::SampleAttractorState(
         GoalConstraint gc = m_goal;     //may not be required but just in case
         gc.angles = workspace_state;
         gc.type = GoalType::JOINT_STATE_GOAL;
-        if (!RobotPlanningSpace::setGoal(gc)) {
+        if (!WorkspaceLattice::setGoal(gc)) {    // RobotPlanningSpace::setGoal(gc)
             ROS_ERROR("Set new attractor goal failed");
         }
 
@@ -982,10 +995,12 @@ void WorkspaceLatticeZero::GetSuccs(
         // check if hash entry already exists, if not then create one
         int succ_id = createState(succ_coord);
         WorkspaceLatticeState* succ_state = getState(succ_id);
-        succ_state->state = final_rstate;
+        succ_state->state = final_state; // was: final_rstate
 
         // check if this state meets the goal criteria
         const bool is_goal_succ = false;
+        //TODO: FIX THIS!
+
         // const bool is_goal_succ = isGoal(final_state);
 
         // put successor on successor list with the proper cost
@@ -1179,7 +1194,7 @@ bool WorkspaceLatticeZero::checkAction(
     void WorkspaceLatticeZero::getLimits() {
         // get the limits of the robot
         SMPL_DEBUG_NAMED("LIMITS", "getLimits");
-        SMPL_DEBUG_STREAM_NAMED("LIMITS",  "    max limits: " << m_min_ws_limits << "    max limits: " << m_max_ws_limits);
+        SMPL_DEBUG_STREAM_NAMED("LIMITS",  "    min limits: " << m_min_ws_limits << "    max limits: " << m_max_ws_limits);
     }
 
 } // namespace smpl

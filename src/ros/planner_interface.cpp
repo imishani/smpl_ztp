@@ -100,7 +100,7 @@ auto MakeWorkspaceLatticeZero(
     wsp.res_x = grid->resolution();
     wsp.res_y = grid->resolution();
     wsp.res_z = grid->resolution();
-    // TODO: What is these magic numbers? make this a parameter
+    // TODO: What are these magic numbers? make this a parameter
     wsp.R_count = 36; //72;
     wsp.P_count = 18 + 1; //36 + 1;
     wsp.Y_count = 36; //72;
@@ -125,7 +125,7 @@ auto MakeWorkspaceLatticeZero(
     space->actions.m_ik_amp_enabled = false;
 
     if (!InitSimpleWorkspaceLatticeActions(space.get(), &space->actions)) {
-        return NULL;
+        return nullptr;
     }
 
     space->setVisualizationFrameId(grid->getReferenceFrame());
@@ -606,7 +606,7 @@ bool PlannerInterface::solveZero(
             ROS_INFO("\n************* QUERY %d ***************", i);
             ROS_INFO("Zero time query");
 
-            while (!task_space_->SampleRobotState(goal.angles));
+            while (!task_space_->SampleRobotState(goal.angles)); // TODO: What? It seems like an error. We sample in joint space but the goal type is pose?
             m_zero_planner->setStartAndGoal(initial_positions, goal);
 
             auto now = clock::now();

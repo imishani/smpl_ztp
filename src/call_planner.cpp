@@ -408,7 +408,7 @@ auto SetupKDLRobotModel(const std::string& urdf, const RobotModelConfig &config)
 
 auto SetupMoveItRobotModel(const std::string& urdf, const RobotModelConfig &config,
                            std::shared_ptr<moveit::core::RobotModel>& robot_model,
-                           std::string group_name = "manipulator")
+                           std::string group_name = "manipulator") // TODO: delete this. We have the group name in config
     -> std::unique_ptr<sbpl_interface::MoveItRobotModel>
 {
     std::unique_ptr<sbpl_interface::MoveItRobotModel> rm;
@@ -460,9 +460,10 @@ void initAllowedCollisionsPR2(smpl::collision::CollisionSpace &cspace)
 
 void SetJoints(moveit_msgs::RobotState &state,
                smpl::collision::CollisionSpace &cspace){
+    SMPL_INFO("Setting CollisionSpace joints to initial state..");
     int j {0};
     for (auto& joint : state.joint_state.name) {
-        ROS_INFO("Joint: %s", joint.c_str());
+        SMPL_INFO("Joint: %s", joint.c_str());
         cspace.setJointPosition(joint, state.joint_state.position[j]);
         cspace.m_rcs->setJointVarPosition(joint, state.joint_state.position[j]);
         ++j;
@@ -594,8 +595,8 @@ int main(int argc, char* argv[])
 
     scene.SetCollisionSpace(&cc);
     std::string object_filename;
-    ph.param<std::string>("object_filename", object_filename, "");
-
+    ph.param<std::string>("/object_filename", object_filename, "");
+    SMPL_INFO("Object Filename: %s", object_filename.c_str());
     // read in collision objects from file and add to the scene
     if (!object_filename.empty()) {
         auto objects = GetCollisionObjects(object_filename, planning_frame);
@@ -723,9 +724,9 @@ int main(int argc, char* argv[])
 
     // plan
     ROS_INFO("Calling solve...");
-    moveit_msgs::PlanningScene planning_scene;
+    moveit_msgs::PlanningScene planning_scene; // Is this necessary? If so, maybe I should use different name
     planning_scene.robot_state = start_state;
-    bool query = false;
+    bool query = true;
 //    if (!nh.getParam("query", query)) {
 //        ROS_INFO_STREAM(ph.getNamespace() << "/query");
 //        ROS_ERROR("Failed to read 'query' from the param server");

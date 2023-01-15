@@ -525,7 +525,7 @@ unsigned int ARAStarZero::compute_reachability(const unsigned int r_max, int att
         SearchState* min_state = m_open.min();
         m_open.pop();
         assert(min_state->iteration_closed != m_iteration);
-        assert(min_state->g != INFINITECOST);
+//        assert(min_state->g != INFINITECOST); // Isn't it greedy? Why did Fahad do this?
         min_state->iteration_closed = m_iteration;
 
         SMPL_DEBUG_NAMED(SRLOG, "Expanding state: %d, h: %d", min_state->state_id, min_state->h);
@@ -710,7 +710,7 @@ int ARAStarZero::search_for_valid_uncovered_states(
 
         m_task_space->VisualizePoint(min_state->state_id, "invalid");
         assert(min_state->iteration_closed != m_iteration);
-        assert(min_state->g != INFINITECOST);
+//        assert(min_state->g != INFINITECOST); // TODO: why is this here?
         min_state->iteration_closed = m_iteration;
         if (m_task_space->IsStateValid(min_state->state_id) &&
             !m_task_space->IsStateCovered(true, min_state->state_id)) {

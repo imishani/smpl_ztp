@@ -244,7 +244,7 @@ bool ZeroTimePlanner::PlanPathFromStartToAttractorOMPL(const RobotState& attract
     ROS_INFO("Going to plan!");
     moveit::planning_interface::MoveGroupInterface::Plan my_plan;
     auto ret = m_group->plan(my_plan);
-    sleep(0.1);
+    sleep(1); // 0.1
 
     if (ret != moveit_msgs::MoveItErrorCodes::SUCCESS) {
         ROS_WARN("OMPL failed to plan");
@@ -354,7 +354,6 @@ bool ZeroTimePlanner::PlanPathFromStartToAttractorSMPL(const RobotState& attract
 
 void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
 {
-    m_task_space->getLimits();
     m_regions.clear();
     if (m_pp_planner != "ARAStar")
         InitMoveitOMPL();

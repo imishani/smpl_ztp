@@ -187,6 +187,7 @@ private:
     std::default_random_engine m_generator;
     GoalConstraint m_goal;
     WorkspaceState m_workspace_state;
+    RobotState m_joint_state;
     RobotState m_ik_seed;
     std::vector<region>* m_regions_ptr;     // be careful
     std::vector<region>* m_iregions_ptr;
