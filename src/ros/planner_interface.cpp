@@ -576,7 +576,6 @@ bool PlannerInterface::solveZero(
     }
 
     ROS_INFO_NAMED(PI_LOGGER, "Initialized zero time planner");
-
     m_zero_planner.reset(new ZeroTimePlanner(
         dynamic_cast<ManipLattice*>(manip_space.get()),
         dynamic_cast<WorkspaceLatticeZero*>(task_space.get()),
@@ -596,7 +595,7 @@ bool PlannerInterface::solveZero(
         m_zero_planner->PreProcess(initial_positions);
     }
     else {
-        int num_queries = 1;
+        int num_queries = 10;
         double total_time = 0.0;
         double best_time = 10000.0;
         double worst_time = 0.0;

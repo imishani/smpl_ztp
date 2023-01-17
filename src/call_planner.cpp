@@ -726,9 +726,9 @@ int main(int argc, char* argv[])
     ROS_INFO("Calling solve...");
     moveit_msgs::PlanningScene planning_scene; // Is this necessary? If so, maybe I should use different name
     planning_scene.robot_state = start_state;
-    bool query = false;
-//    if (!nh.getParam("query", query)) {
-//        ROS_INFO_STREAM(ph.getNamespace() << "/query");
+    bool query = true;
+//    if (!nh.getParam("/query", query)) {
+//        ROS_INFO_STREAM(ph.getNamespace() << "query");
 //        ROS_ERROR("Failed to read 'query' from the param server");
 //        return 1;
 //    }

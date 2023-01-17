@@ -168,24 +168,24 @@ bool WorkspaceLatticeZero::projectToPose(int state_id, Eigen::Isometry3d& pose)
     return true;
 }
 
-//const WorkspaceState& WorkspaceLatticeZero::extractState(int state_id)
-//{
-//    /* It returned workspace state but I changed it to retuen joint state value */
-//    stateCoordToWorkspace(m_states[state_id]->coord, m_workspace_state);
-////    RobotState* robot_state;
-////    stateWorkspaceToRobot(m_workspace_state, *robot_state);
-//    return m_workspace_state;
-////    return *robot_state;
-//}
-auto WorkspaceLatticeZero::extractState(int state_id) -> const RobotState&
+const WorkspaceState& WorkspaceLatticeZero::extractState(int state_id)
 {
-//    stateCoordToRobot(m_states[state_id]->coord, m_joint_state);
-//    GetJointState(state_id, m_joint_state); // Check it
-        // normalize_euler_zyx(&workspace_state[3]);
+    /* It returned workspace state but I changed it to retuen joint state value */
     stateCoordToWorkspace(m_states[state_id]->coord, m_workspace_state);
-    stateWorkspaceToRobot(m_workspace_state, m_joint_state);
-    return m_joint_state;
+//    RobotState* robot_state;
+//    stateWorkspaceToRobot(m_workspace_state, *robot_state);
+    return m_workspace_state;
+//    return *robot_state;
 }
+//auto WorkspaceLatticeZero::extractState(int state_id) -> const RobotState&
+//{
+////    stateCoordToRobot(m_states[state_id]->coord, m_joint_state);
+////    GetJointState(state_id, m_joint_state); // Check it
+//        // normalize_euler_zyx(&workspace_state[3]);
+//    stateCoordToWorkspace(m_states[state_id]->coord, m_workspace_state);
+//    stateWorkspaceToRobot(m_workspace_state, m_joint_state);
+//    return m_joint_state;
+//}
 
 void WorkspaceLatticeZero::GetPreds(
     int state_id,
@@ -344,15 +344,15 @@ int WorkspaceLatticeZero::SampleAttractorState(
         m_valid_front.insert(entry);
 
         // set the (modified) goal
-        // GoalConstraint gc = m_goal;     //may not be required but just in case
-        // gc.angles = workspace_state;     // What? Why inputting wokrspace_state in gc.angles?
-        // gc.type = GoalType::JOINT_STATE_GOAL;
-        // if (!WorkspaceLattice::setGoal(gc)) {    // RobotPlanningSpace::setGoal(gc)
-        //     ROS_ERROR("Set new attractor goal failed");
-        // }
+         GoalConstraint gc = m_goal;     //may not be required but just in case
+         gc.angles = workspace_state;     // What? Why inputting wokrspace_state in gc.angles?
+         gc.type = GoalType::JOINT_STATE_GOAL;
+         if (!WorkspaceLattice::setGoal(gc)) {    // RobotPlanningSpace::setGoal(gc)
+             ROS_ERROR("Set new attractor goal failed");
+         }
 
         auto* vis_name = "attractor_config";
-        SV_SHOW_INFO_NAMED(vis_name, getStateVisualization(joint_state, vis_name));
+        // SV_SHOW_INFO_NAMED(vis_name, getStateVisualization(joint_state, vis_name));
         // m_ik_seed = joint_state;
         ROS_INFO("Sampled attractor %zu on try: %d", m_regions_ptr->size(), count);
         return attractor_state_id;
@@ -589,7 +589,7 @@ int WorkspaceLatticeZero::SetAttractorState()
 
     // set the (modified) goal
     GoalConstraint gc = m_goal;     //may not be required but just in case
-    gc.angles = entry->state; // workspace_state;
+    gc.angles = workspace_state; // entry->state;
     gc.type = GoalType::JOINT_STATE_GOAL;
     if (!RobotPlanningSpace::setGoal(gc)) {
         ROS_ERROR("Set new attractor state goal failed");
@@ -974,7 +974,7 @@ void WorkspaceLatticeZero::GetSuccs(
         WorkspaceCoord succ_coord;
         stateWorkspaceToCoord(final_state, succ_coord);
 //        stateCoordToWorkspace(succ_coord, final_state);
-        stateWorkspaceToRobot(final_state, final_rstate);
+//        stateWorkspaceToRobot(final_state, final_rstate);
         // check if hash entry already exists, if not then create one
         int succ_id = createState(succ_coord);
         WorkspaceLatticeState* succ_state = getState(succ_id);

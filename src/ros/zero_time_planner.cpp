@@ -244,7 +244,7 @@ bool ZeroTimePlanner::PlanPathFromStartToAttractorOMPL(const RobotState& attract
     ROS_INFO("Going to plan!");
     moveit::planning_interface::MoveGroupInterface::Plan my_plan;
     auto ret = m_group->plan(my_plan);
-    sleep(1) // Wanted to 0.1 but 'sleep' takes unsigned ints only. TODO: Check other sleep method
+    sleep(1); // Wanted to 0.1 but 'sleep' takes unsigned ints only. TODO: Check other sleep method
 
     if (ret != moveit_msgs::MoveItErrorCodes::SUCCESS) {
         ROS_WARN("OMPL failed to plan");
@@ -563,9 +563,9 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
 
     GoalConstraint goal;
     goal.type = GoalType::JOINT_STATE_GOAL;
-    WorkspaceState goal_workspace_state = m_regions[reg_idx].state;
-    m_task_space->stateWorkspaceToRobot(goal_workspace_state, goal.angles);
-//    goal.angles = m_regions[reg_idx].state;
+//    WorkspaceState goal_workspace_state = m_regions[reg_idx].state;
+//    m_task_space->stateWorkspaceToRobot(goal_workspace_state, goal.angles);
+    goal.angles = m_regions[reg_idx].state;
 	m_task_space->setGoal(goal);
 
     // set sbpl planner goal
