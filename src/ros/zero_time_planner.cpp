@@ -199,7 +199,7 @@ void ZeroTimePlanner::setStartAndGoal(
 
 void ZeroTimePlanner::InitMoveitOMPL()
 {
-    m_group.reset(new moveit::planning_interface::MoveGroupInterface("manipulator")); //right_arm
+    m_group.reset(new moveit::planning_interface::MoveGroupInterface("manipulator"));
     ROS_INFO("Planning path with OMPL");
 
     // Collision objects
@@ -244,7 +244,7 @@ bool ZeroTimePlanner::PlanPathFromStartToAttractorOMPL(const RobotState& attract
     ROS_INFO("Going to plan!");
     moveit::planning_interface::MoveGroupInterface::Plan my_plan;
     auto ret = m_group->plan(my_plan);
-    sleep(1); // 0.1
+    sleep(1) // Wanted to 0.1 but 'sleep' takes unsigned ints only. TODO: Check other sleep method
 
     if (ret != moveit_msgs::MoveItErrorCodes::SUCCESS) {
         ROS_WARN("OMPL failed to plan");
@@ -358,7 +358,7 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
     if (m_pp_planner != "ARAStar")
         InitMoveitOMPL();
 
-    unsigned int radius_max_v = 100;
+    unsigned int radius_max_v = 1000;
     unsigned int radius_max_i = 1000;
     m_task_space->PassRegions(&m_regions, &m_iregions);
 
@@ -369,17 +369,13 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
     int sampled_state_id = m_task_space->SampleAttractorState(sampled_state, maximum_tries);
     m_task_space->VisualizePoint(sampled_state_id, "attractor");
     if (sampled_state_id == -1) {
-        // ROS_INFO("Converged! I tried for %d samples", maximum_tries);
         ROS_ERROR("Failed to sample first attractor");
         return;
     }
 
-    // m_task_space->m_valid_front.insert(sampled_state);   //doing in SampleAttractorState
     while (!m_task_space->m_valid_front.empty() || !m_task_space->m_invalid_front.empty()) {
         while (!m_task_space->m_valid_front.empty()) {
-            // auto entry = m_task_space->m_valid_front.front();
-            // WorkspaceState attractor = *it;
-            // m_task_space->m_valid_front.erase(it);
+
         	int attractor_state_id = m_task_space->SetAttractorState();
 
             if (/*!m_task_space->IsStateCovered(true, attractor_state_id)*/
@@ -395,6 +391,7 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
                 bool ret;
                 if (m_pp_planner != "ARAStar") {
                     ret = PlanPathFromStartToAttractorOMPL(attractor_joint_state, path);
+                    // TODO: Modify PlanPathFromStartToAttractorOMPL so it will return `path`
                 }
                 else {
                     ret = PlanPathFromStartToAttractorSMPL(attractor_joint_state, path);
@@ -566,7 +563,9 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
 
     GoalConstraint goal;
     goal.type = GoalType::JOINT_STATE_GOAL;
-    goal.angles = m_regions[reg_idx].state;
+    WorkspaceState goal_workspace_state = m_regions[reg_idx].state;
+    m_task_space->stateWorkspaceToRobot(goal_workspace_state, goal.angles);
+//    goal.angles = m_regions[reg_idx].state;
 	m_task_space->setGoal(goal);
 
     // set sbpl planner goal

@@ -134,12 +134,6 @@ bool WorkspaceLatticeZero::readGoalRegion()
     stateWorkspaceToCoord(m_max_ws_limits, limits_coord);
     stateCoordToWorkspace(limits_coord, m_max_ws_limits);
 
-    // printf("min %f max %f\n", m_min_ws_limits[0], m_max_ws_limits[0]);
-    // printf("min %f max %f\n", m_min_ws_limits[1], m_max_ws_limits[1]);
-    // printf("min %f max %f\n", m_min_ws_limits[2], m_max_ws_limits[2]);
-
-    // getchar();
-
     for (size_t i = 0; i < m_min_ws_limits.size(); ++i) {
         if (m_min_ws_limits[i] > m_max_ws_limits[i]) {
             ROS_ERROR("Min limit greater than max limit at index %zu", i);
@@ -318,6 +312,7 @@ int WorkspaceLatticeZero::SampleAttractorState(
     WorkspaceState& workspace_state,
     int max_tries)
 {
+    /* We are looking for a random state and storing it in 'workspace_state' object*/
     int attractor_state_id;
     int count = 0;
     while (count < max_tries) {
@@ -349,12 +344,12 @@ int WorkspaceLatticeZero::SampleAttractorState(
         m_valid_front.insert(entry);
 
         // set the (modified) goal
-        GoalConstraint gc = m_goal;     //may not be required but just in case
-        gc.angles = workspace_state;
-        gc.type = GoalType::JOINT_STATE_GOAL;
-        if (!WorkspaceLattice::setGoal(gc)) {    // RobotPlanningSpace::setGoal(gc)
-            ROS_ERROR("Set new attractor goal failed");
-        }
+        // GoalConstraint gc = m_goal;     //may not be required but just in case
+        // gc.angles = workspace_state;     // What? Why inputting wokrspace_state in gc.angles?
+        // gc.type = GoalType::JOINT_STATE_GOAL;
+        // if (!WorkspaceLattice::setGoal(gc)) {    // RobotPlanningSpace::setGoal(gc)
+        //     ROS_ERROR("Set new attractor goal failed");
+        // }
 
         auto* vis_name = "attractor_config";
         SV_SHOW_INFO_NAMED(vis_name, getStateVisualization(joint_state, vis_name));
@@ -368,6 +363,7 @@ int WorkspaceLatticeZero::SampleAttractorState(
 
 bool WorkspaceLatticeZero::SampleRobotState(RobotState& joint_state)
 {
+    // Check if we have redundant joints and constructing a vector of all degrees of freedom:
     std::vector<double> workspace_state(6 + freeAngleCount());
     for (int i = 0; i < workspace_state.size() ; ++i) {
         workspace_state[i] = m_distribution[i](m_generator);
@@ -588,7 +584,7 @@ int WorkspaceLatticeZero::SetAttractorState()
         stateWorkspaceToRobot(workspace_state, entry->state);
     }
 
-    int attractor_state_id =  createState(entry->coord);
+    int attractor_state_id = createState(entry->coord);
     m_goal_state_id = attractor_state_id;  // for WorkspaceDistHeuristic
 
     // set the (modified) goal
@@ -598,15 +594,6 @@ int WorkspaceLatticeZero::SetAttractorState()
     if (!RobotPlanningSpace::setGoal(gc)) {
         ROS_ERROR("Set new attractor state goal failed");
     }
-
-    // if (m_regions_ptr->size() >= 1534) {
-    //     SMPL_INFO_STREAM_NAMED("graph.expands", "    attractor state: " << workspace_state);
-    // }
-
-    // auto* vis_name = "attractor_config";
-    // SV_SHOW_INFO_NAMED(vis_name, getStateVisualization(joint_state, vis_name));
-    // m_ik_seed = state;
-    // ROS_INFO("New attractor state set");
 
     return attractor_state_id;
 }
@@ -658,7 +645,7 @@ void WorkspaceLatticeZero::PassRegions(
 
 void WorkspaceLatticeZero::VisualizePoint(int state_id, std::string type)
 {
-#if 0
+#if 1
     WorkspaceLatticeState* entry = getState(state_id);
     int hue = 0;
     if (type == "greedy")
@@ -682,7 +669,7 @@ void WorkspaceLatticeZero::VisualizePoint(int state_id, std::string type)
                                            m_vis_id);
     SV_SHOW_INFO_NAMED(vis_name, marker);
     m_vis_id++;
-    getchar();
+//    getchar();
 #endif
 }
 
@@ -982,20 +969,16 @@ void WorkspaceLatticeZero::GetSuccs(
                 continue;
             }
         }
-        // else {
-        //     if (!checkAction(parent_entry->state, action, &final_rstate)) {
-        //         continue;
-        //     }
-        // }
 
         const WorkspaceState& final_state = action.back();
         WorkspaceCoord succ_coord;
         stateWorkspaceToCoord(final_state, succ_coord);
-
+//        stateCoordToWorkspace(succ_coord, final_state);
+        stateWorkspaceToRobot(final_state, final_rstate);
         // check if hash entry already exists, if not then create one
         int succ_id = createState(succ_coord);
         WorkspaceLatticeState* succ_state = getState(succ_id);
-        succ_state->state = final_state; // was: final_rstate
+        succ_state->state = final_rstate; // was: final_rstate
 
         // check if this state meets the goal criteria
         const bool is_goal_succ = false;
@@ -1105,7 +1088,6 @@ bool WorkspaceLatticeZero::checkActionPreprocessing(
 
     WorkspaceState end_state;
     end_state = action[action.size() - 1];
-
     SMPL_DEBUG_STREAM_NAMED("graph.expands", "  end state: " << end_state);
     if (!IsWorkspaceStateInGoalRegion(end_state)) {
         violation_mask |= 0x00000001;

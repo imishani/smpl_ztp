@@ -505,6 +505,8 @@ unsigned int ARAStarZero::compute_reachability(const unsigned int r_max, int att
     m_preds.clear();
     m_costs.clear();
     m_task_space->GetPreds(attractor_state_id, &m_preds, &m_costs);
+    auto test = m_task_space->getState(attractor_state_id);
+
     for (const auto& pred_id : m_preds) {
         auto pred_state = getSearchState(pred_id);
         reinitSearchState(pred_state);
@@ -543,7 +545,9 @@ unsigned int ARAStarZero::compute_reachability(const unsigned int r_max, int att
         }
 
         m_h_max_states.push_back(min_state);
-
+        ////
+        // Check for min_state being in joint state:
+        auto test2 = m_task_space->getState(min_state->state_id);
         ///@{ Greedy successor --line 7
         auto start = std::chrono::system_clock::now();
         m_task_space->GetSuccs(min_state->state_id, &m_succs, &m_costs);
@@ -585,6 +589,7 @@ unsigned int ARAStarZero::compute_reachability(const unsigned int r_max, int att
 
         ///@{ Greedy set criteria --line 8-9
         start = std::chrono::system_clock::now();
+
         if (succ_state_g->greedy &&
             m_task_space->IsStateToStateValid(min_state->state_id, succ_state_g->state_id)) {
                 SMPL_DEBUG_NAMED(SRLOG, "State: %d added as greedy", min_state->state_id);
@@ -859,8 +864,8 @@ int ARAStarZero::computeKey(SearchState* s) const
     return (unsigned int)(m_curr_eps * s->h);
 }
 
-// Get the search state corresponding to a graph state, creating a new state if
-// one has not been created yet.
+///@brief Get the search state corresponding to a graph state, creating a new state if
+/// one has not been created yet.
 ARAStarZero::SearchState* ARAStarZero::getSearchState(int state_id)
 {
     if (m_states.size() <= state_id) {
@@ -868,7 +873,7 @@ ARAStarZero::SearchState* ARAStarZero::getSearchState(int state_id)
     }
 
     auto& state = m_states[state_id];
-    if (state == NULL) {
+    if (state == nullptr) {
         state = createState(state_id);
     }
 

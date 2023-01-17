@@ -83,7 +83,7 @@ int WorkspaceDistHeuristic::GetGoalHeuristic(int state_id)
         SMPL_WARN_ONCE("Workspace Distance Heuristic can only compute goal heuristics for Joint Goals");
         return 0;
     }
-
+    // TODO: we previously contraint it to be in workspace but now we compute joint distance?
     const RobotState& goal_state = planningSpace()->goal().angles;
     const RobotState& state = m_ers->extractState(state_id);
     assert(goal_state.size() == state.size());

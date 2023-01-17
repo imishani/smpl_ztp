@@ -183,8 +183,13 @@ private:
     ros::NodeHandle m_nh;
     std::vector<double> m_min_ws_limits;
     std::vector<double> m_max_ws_limits;
-    std::vector<std::uniform_real_distribution<double>> m_distribution;
-    std::default_random_engine m_generator;
+    std::vector<std::uniform_real_distribution<double>> m_distribution; // Inclusive Exclusive uniform distribution
+    std::default_random_engine m_generator; // Pseudo random values generator (deterministic)
+    /* ============================= */
+    // If you want random values (non-determinstic) just do the following in the init() function:
+    // std::random_device rd;
+    // std::default_random_engine m_generator(rd());
+    /* ============================= */
     GoalConstraint m_goal;
     WorkspaceState m_workspace_state;
     RobotState m_joint_state;
