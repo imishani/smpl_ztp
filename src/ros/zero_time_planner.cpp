@@ -257,13 +257,11 @@ bool ZeroTimePlanner::PlanPathFromStartToAttractorOMPL(const RobotState& attract
     //TODO fix it
 
     // fill path
-    // path.resize(my_plan.trajectory_.joint_trajectory.points.size());
-    // for (size_t i = 0; i < my_plan.trajectory_.joint_trajectory.points.size(); ++i) {
-    //     auto positions = my_plan.trajectory_.joint_trajectory.points[i].positions;
-    //     std::vector<double> wp;
-    //     unsigned dataArraySize = sizeof(positions) / sizeof(positions[0]);
-    //     std::copy(&positions[0], &positions[dataArraySize], back_inserter(path[i]));
-    // }
+    path.resize(my_plan.trajectory_.joint_trajectory.points.size());
+    for (size_t i = 0; i < my_plan.trajectory_.joint_trajectory.points.size(); ++i) {
+        auto positions = my_plan.trajectory_.joint_trajectory.points[i].positions;
+        path[i] = positions;
+    }
     return true;
 }
 

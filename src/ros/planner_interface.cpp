@@ -595,7 +595,7 @@ bool PlannerInterface::solveZero(
         m_zero_planner->PreProcess(initial_positions);
     }
     else {
-        int num_queries = 10;
+        int num_queries = 1;
         double total_time = 0.0;
         double best_time = 10000.0;
         double worst_time = 0.0;
