@@ -61,6 +61,7 @@
 #include <smpl/heuristic/robot_heuristic.h>
 
 #include <smpl_ztp/ros/zero_time_planner.h>
+#include <smpl_ztp/graph/goal_contrant_ztp.hpp>
 
 SBPL_CLASS_FORWARD(SBPLPlanner);
 
@@ -88,7 +89,7 @@ public:
         CollisionChecker* checker,
         OccupancyGrid* grid);
 
-    ~PlannerInterface();
+    ~PlannerInterface() = default;
 
     bool init(const PlanningParams& params);
 

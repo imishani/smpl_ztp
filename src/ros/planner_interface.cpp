@@ -83,10 +83,13 @@
 
 #include <smpl/ros/factories.h>
 
+// TODO: Organize includes
+
 namespace smpl {
 
 const char* PI_LOGGER = "simple";
 
+/// @{ Making new factories for the new planners: ("/src/smpl/smpl_ros/include/smpl/ros/factories.h")
 auto MakeWorkspaceLatticeZero(
     RobotModel* robot,
     CollisionChecker* checker,
@@ -195,6 +198,7 @@ auto MakeARAStarZero(
     return std::move(search);
 }
 
+/// @}
 PlannerInterface::PlannerInterface(
     RobotModel* robot,
     CollisionChecker* checker,
@@ -318,10 +322,6 @@ PlannerInterface::PlannerInterface(
 
     m_heuristic_factories["workspace_distance"] = MakeWorkspaceDistHeuristic;
     m_planner_factories["arastar_zero"] = MakeARAStarZero;
-}
-
-PlannerInterface::~PlannerInterface()
-{
 }
 
 bool PlannerInterface::init(const PlanningParams& params)
@@ -559,7 +559,7 @@ bool PlannerInterface::solveZero(
     assert(!goal_constraints_v.empty());
     const auto& goal_constraints = goal_constraints_v.front();
 
-    GoalConstraint goal;
+    GoalConstraintZTP goal;
     if (req.goal_constraints.front().position_constraints.size() > 0) {
         if (!fillGoalPositionConstraint(goal_constraints, goal)) {
             ROS_ERROR("Failed to fill goal position constraint");
@@ -595,7 +595,7 @@ bool PlannerInterface::solveZero(
         m_zero_planner->PreProcess(initial_positions);
     }
     else {
-        int num_queries = 1;
+        int num_queries = 10;
         double total_time = 0.0;
         double best_time = 10000.0;
         double worst_time = 0.0;
@@ -605,8 +605,14 @@ bool PlannerInterface::solveZero(
             ROS_INFO("\n************* QUERY %d ***************", i);
             ROS_INFO("Zero time query");
 
-            while (!task_space_->SampleRobotState(goal.angles)); // TODO: What? It seems like an error. We sample in joint space but the goal type is pose?
+            while (!task_space_->SampleRobotState(goal.angles, goal.ws_state));
             m_zero_planner->setStartAndGoal(initial_positions, goal);
+
+//            ROS_INFO_STREAM("Euler before: " << goal.ws_state[3] << " " << goal.ws_state[4] << " " << goal.ws_state[5]);
+//            get_euler_zyx(goal.pose.rotation(), goal.ws_state[5], goal.ws_state[4], goal.ws_state[3]);
+
+            ROS_INFO_STREAM("Goal ws state: \n" << "Translation:" << goal.ws_state[0] << " " << goal.ws_state[1] << " " << goal.ws_state[2]);
+            ROS_INFO_STREAM("Rotation:" << goal.ws_state[3] << " " << goal.ws_state[4] << " " << goal.ws_state[5]);
 
             auto now = clock::now();
             m_zero_planner->Query(path);

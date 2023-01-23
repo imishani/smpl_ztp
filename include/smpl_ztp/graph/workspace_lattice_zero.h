@@ -145,13 +145,16 @@ public:
         WorkspaceState& workspace_state,
         int max_tries);
 
-    bool SampleRobotState(RobotState& joint_state);
+    bool SampleRobotState(RobotState& joint_state, WorkspaceState& workspace_state);
 
     bool SearchForValidIK(const GoalConstraint goal, std::vector<double>& angles);
 
     int FindRegionContainingState(const RobotState& joint_state);
 
+    int FindRegionContainingState_WS(const WorkspaceState& workspace_state);
+
     bool IsRobotStateInGoalRegion(const RobotState& joint_state);
+
     bool IsWorkspaceStateInGoalRegion(const WorkspaceState& workspace_state);
 
     void UpdateSearchMode(int search_mode){m_search_mode = search_mode;};

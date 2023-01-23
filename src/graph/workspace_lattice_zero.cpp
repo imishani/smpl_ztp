@@ -37,7 +37,7 @@
 #include <chrono>
 #include <boost/functional/hash.hpp>
 #include <fstream>
-
+#include <unsupported/Eigen/EulerAngles>
 // project includes
 #include <ros/console.h>
 #include <smpl/angles.h>
@@ -52,6 +52,7 @@
 #include <moveit/robot_state/robot_state.h>
 #include <moveit/robot_model/robot_model.h>
 #include <tf/tf.h>
+#include "smpl_ztp/graph/goal_contrant_ztp.hpp"
 
 #define tie_breaking
 
@@ -319,12 +320,15 @@ int WorkspaceLatticeZero::SampleAttractorState(
         count++;
 
         RobotState joint_state;
-        if (!SampleRobotState(joint_state)) {
+        WorkspaceState workspace_state_sampled;
+        if (!SampleRobotState(joint_state, workspace_state_sampled)) {
             continue;
         }
         // WorkspaceState workspace_state;
         WorkspaceCoord workspace_coord;
-        stateRobotToWorkspace(joint_state, workspace_state);
+//        stateRobotToWorkspace(joint_state, workspace_state);
+//      TODO: I should be careful here. I assume perfect IK.
+        workspace_state = workspace_state_sampled;
         stateWorkspaceToCoord(workspace_state, workspace_coord);
         attractor_state_id = createState(workspace_coord);
 
@@ -345,7 +349,7 @@ int WorkspaceLatticeZero::SampleAttractorState(
 
         // set the (modified) goal
          GoalConstraint gc = m_goal;     //may not be required but just in case
-         gc.angles = workspace_state;     // What? Why inputting wokrspace_state in gc.angles?
+         gc.angles = workspace_state;     // What? Why inputting workspace_state in gc.angles?
          gc.type = GoalType::JOINT_STATE_GOAL;
          if (!WorkspaceLattice::setGoal(gc)) {    // RobotPlanningSpace::setGoal(gc)
              ROS_ERROR("Set new attractor goal failed");
@@ -361,10 +365,11 @@ int WorkspaceLatticeZero::SampleAttractorState(
     return -1;
 }
 
-bool WorkspaceLatticeZero::SampleRobotState(RobotState& joint_state)
+bool WorkspaceLatticeZero::SampleRobotState(RobotState& joint_state, WorkspaceState& workspace_state)
 {
     // Check if we have redundant joints and constructing a vector of all degrees of freedom:
-    std::vector<double> workspace_state(6 + freeAngleCount());
+//    std::vector<double> workspace_state(6 + freeAngleCount());
+    workspace_state.resize(6 + freeAngleCount());
     for (int i = 0; i < workspace_state.size() ; ++i) {
         workspace_state[i] = m_distribution[i](m_generator);
     }
@@ -375,6 +380,15 @@ bool WorkspaceLatticeZero::SampleRobotState(RobotState& joint_state)
     stateWorkspaceToCoord(workspace_state, workspace_coord);
     stateCoordToWorkspace(workspace_coord, workspace_state);
 
+
+    /* ######## Testing Euler Angles: ######## */
+    typedef Eigen::EulerSystem<Eigen::EULER_Z, Eigen::EULER_Y, Eigen::EULER_X> EulerSys;
+    typedef Eigen::EulerAngles<double, EulerSys> EulerAngles;
+
+    EulerAngles euler(workspace_state[5], workspace_state[4], workspace_state[3]);
+    auto rot = euler.toRotationMatrix();
+    ROS_INFO_STREAM("Rotation Matrix: \n" << rot);
+    // End
     if (!stateWorkspaceToRobot(workspace_state, joint_state)) {
         SMPL_DEBUG_NAMED("graph", "Unable to sample robot state: Invalid IK");
         return false;
@@ -437,8 +451,8 @@ bool WorkspaceLatticeZero::SampleRobotState(RobotState& joint_state)
     stateRobotToWorkspace(joint_state, workspace_state_FK);
 
     RobotState joint_states_deg;
-    for (int i = 0; i < joint_state.size(); ++i) {
-        joint_states_deg.push_back(smpl::to_degrees(joint_state[i]));
+    for (double i : joint_state) {
+        joint_states_deg.push_back(smpl::to_degrees(i));
     }
 
     SMPL_DEBUG_NAMED("graph", "Sampled State");
@@ -458,6 +472,8 @@ bool WorkspaceLatticeZero::SearchForValidIK(const GoalConstraint goal, std::vect
 
 int WorkspaceLatticeZero::FindRegionContainingState(const RobotState& joint_state)
 {
+    // TODO: Make here three overloaded functions for the different types of inputs
+    // Where the base function takes ws_coord and the other two takes joint state and workspace state
     WorkspaceState workspace_state;
     WorkspaceCoord workspace_coord;
     stateRobotToCoord(joint_state, workspace_coord);
@@ -503,6 +519,44 @@ int WorkspaceLatticeZero::FindRegionContainingState(const RobotState& joint_stat
     }
 }
 
+int WorkspaceLatticeZero::FindRegionContainingState_WS(const WorkspaceState& ws_state) {
+
+    WorkspaceCoord workspace_coord;
+    stateWorkspaceToCoord(ws_state, workspace_coord);
+    int query_state_id = createState(workspace_coord);
+
+    bool covered = false;
+    int reg_idx = 0;
+    WorkspaceState goal_state;
+    for (const auto& r : *m_regions_ptr) {
+        // WorkspaceState c_workspace_state;
+        WorkspaceCoord workspace_coord;
+        stateWorkspaceToCoord(r.state, workspace_coord);
+        int attractor_state_id = createState(workspace_coord);
+        RobotHeuristic* h = heuristic(0);
+        int dsum = h->GetFromToHeuristic(query_state_id, attractor_state_id);
+                SMPL_DEBUG_STREAM_NAMED("graph.expands", "    query state:     " << ws_state);
+                SMPL_DEBUG_STREAM_NAMED("graph.expands", "    attractor state: " << r.state);
+
+        if (dsum < r.radius || dsum == 0) {
+            // printf("dsum %d radius %u id1 %d id2 %d\n", dsum, r.radius, query_state_id, attractor_state_id);
+            // ROS_INFO("Covered try %d", count);
+            goal_state = r.state;
+            covered = true;
+            break;
+        }
+        reg_idx++;
+    }
+
+    if (covered) {
+                SMPL_DEBUG_NAMED("graph", "Attractor State of Containing Region %d", reg_idx);
+        return reg_idx;
+    }
+    else {
+                SMPL_INFO_STREAM_NAMED("graph.expands", "  start workspace_state: " << ws_state);
+        return -1;
+    }
+}
 
 bool WorkspaceLatticeZero::IsRobotStateInGoalRegion(const RobotState& state)
 {
@@ -1178,5 +1232,7 @@ bool WorkspaceLatticeZero::checkAction(
         SMPL_DEBUG_NAMED("LIMITS", "getLimits");
         SMPL_DEBUG_STREAM_NAMED("LIMITS",  "    min limits: " << m_min_ws_limits << "    max limits: " << m_max_ws_limits);
     }
+
+
 
 } // namespace smpl

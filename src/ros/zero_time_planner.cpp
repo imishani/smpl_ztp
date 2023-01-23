@@ -189,9 +189,17 @@ bool ZeroTimePlanner::isQueryCovered(
     return true;
 }
 
+//void ZeroTimePlanner::setStartAndGoal(
+//    const RobotState& start_state,
+//    const GoalConstraint& goal)
+//{
+//    m_start_state = start_state;
+//    m_goal = goal;
+//}
+
 void ZeroTimePlanner::setStartAndGoal(
-    const RobotState& start_state,
-    const GoalConstraint& goal)
+        const RobotState& start_state,
+        const GoalConstraintZTP& goal)
 {
     m_start_state = start_state;
     m_goal = goal;
@@ -513,31 +521,38 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
     // for pose goal
     if (m_goal.type == GoalType::XYZ_RPY_GOAL) {
         ROS_INFO("Goal is in task space, looking for IK solution..");
-        m_task_space->SearchForValidIK(m_goal, m_goal.angles);
+        /// Already performed IK when generating the goal!
+//        m_task_space->SearchForValidIK(m_goal, m_goal.angles);
     }
 
     ROS_INFO("Updating search mode");
     m_task_space->UpdateSearchMode(QUERY);
 
-    // start -> actual goal
-    // goal -> attractor
-
     RobotState start_state;
 
     start_state = m_goal.angles;
-//    for (double angle : start_state) {
-//        ROS_INFO("Start state: %f", angle);
-//    }
 
-#if 1
+#if 0
     if (!m_task_space->IsRobotStateInGoalRegion(start_state)) {
     	ROS_ERROR("Query state outside start region");
     	return;
     }
 #endif
+
+#if 1
+//    WorkspaceCoord ws_coord;
+//    ws_coord.resize(6);
+//    m_task_space->stateWorkspaceToCoord(m_goal.ws_state, ws_coord);
+//    m_task_space->stateCoordToWorkspace(ws_coord, m_goal.ws_state);
+    if (!m_task_space->IsWorkspaceStateInGoalRegion(m_goal.ws_state)) {
+        ROS_ERROR("Query state outside start region");
+        return;
+    }
+#endif
     auto now = clock::now();
     ROS_INFO("Looking for region containing start state");
-    int reg_idx = m_task_space->FindRegionContainingState(start_state);
+//    int reg_idx = m_task_space->FindRegionContainingState(start_state);
+    int reg_idx = m_task_space->FindRegionContainingState_WS(m_goal.ws_state);
     auto find_time = to_seconds(clock::now() - now);
     ROS_INFO("FIND TIME %f", find_time);
     // getchar();
@@ -657,7 +672,7 @@ void ZeroTimePlanner::WriteRegions()
 
 	ROS_INFO("Writing regions to file");
 
-    boost::filesystem::path myFile = "/home/itamar/work/code/ros/assembly_ws/src/smpl_ztp/src/ros/myfile.dat"; //boost::filesystem::current_path() /
+    boost::filesystem::path myFile = "/home/itamar/work/code/ros/assembly_ws/src/smpl_ztp/src/ros/myfile3.dat"; //boost::filesystem::current_path() /
     std::cout << myFile;
     boost::filesystem::ofstream ofs(myFile);
     boost::archive::text_oarchive ta(ofs);
@@ -669,7 +684,7 @@ void ZeroTimePlanner::ReadRegions()
 	ROS_INFO("Reading regions from file");
     // getchar();
     try {
-        boost::filesystem::path myFile = "/home/itamar/work/code/ros/assembly_ws/src/smpl_ztp/src/ros/myfile.dat"; // boost::filesystem::current_path() /
+        boost::filesystem::path myFile = "/home/itamar/work/code/ros/assembly_ws/src/smpl_ztp/src/ros/myfile3.dat"; // boost::filesystem::current_path() /
         boost::filesystem::ifstream ifs(myFile/*.native()*/);
         boost::archive::text_iarchive ta(ifs);
         ta >> m_regions;

@@ -39,6 +39,7 @@
 #include <smpl/graph/manip_lattice.h>
 #include <smpl/search/arastar.h>
 #include <smpl/types.h>
+#include <smpl_ztp/graph/goal_contrant_ztp.hpp>
 
 #include <smpl_ztp/graph/workspace_lattice_zero.h>
 #include <smpl_ztp/search/arastar_zero.h>
@@ -70,9 +71,15 @@ public:
     bool isQueryCovered(
         const RobotState& full_start_state,
         const GoalConstraint& goal);
+
+//    void setStartAndGoal(
+//        const RobotState& start_state,
+//        const GoalConstraint& goal);
+
     void setStartAndGoal(
-        const RobotState& start_state,
-        const GoalConstraint& goal);
+            const RobotState& start_state,
+            const GoalConstraintZTP& goal);
+
     void PreProcess(const RobotState& full_start_state);
     void Query(std::vector<RobotState>& path);
 
@@ -88,7 +95,7 @@ private:
     std::string m_pp_planner;
 
     RobotState m_start_state;
-    GoalConstraint m_goal;
+    GoalConstraintZTP m_goal;
 
     ManipLattice* m_manip_space;
     WorkspaceLatticeZero* m_task_space;
