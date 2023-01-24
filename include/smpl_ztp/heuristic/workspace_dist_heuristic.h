@@ -57,8 +57,11 @@ public:
     /// \name Required Public Functions from Heuristic
     ///@{
     int GetGoalHeuristic(int state_id) override;
+
     int GetStartHeuristic(int state_id) override;
+
     int GetFromToHeuristic(int from_id, int to_id) override;
+
     ///@}
 
 private:

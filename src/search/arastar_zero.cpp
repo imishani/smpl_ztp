@@ -505,7 +505,6 @@ unsigned int ARAStarZero::compute_reachability(const unsigned int r_max, int att
     m_preds.clear();
     m_costs.clear();
     m_task_space->GetPreds(attractor_state_id, &m_preds, &m_costs);
-    auto test = m_task_space->getState(attractor_state_id);
 
     for (const auto& pred_id : m_preds) {
         auto pred_state = getSearchState(pred_id);
@@ -547,7 +546,6 @@ unsigned int ARAStarZero::compute_reachability(const unsigned int r_max, int att
         m_h_max_states.push_back(min_state);
         ////
         // Check for min_state being in joint state:
-        auto test2 = m_task_space->getState(min_state->state_id);
         ///@{ Greedy successor --line 7
         auto start = std::chrono::system_clock::now();
         m_task_space->GetSuccs(min_state->state_id, &m_succs, &m_costs);

@@ -102,7 +102,8 @@ public:
         const moveit_msgs::PlanningScene& planning_scene,
         const moveit_msgs::MotionPlanRequest& req,
         moveit_msgs::MotionPlanResponse& res,
-        bool query = false);
+        bool query = false,
+        bool random_query = true);
 
     static
     bool SupportsGoalConstraints(

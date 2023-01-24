@@ -83,6 +83,8 @@ public:
     void PreProcess(const RobotState& full_start_state);
     void Query(std::vector<RobotState>& path);
 
+    void GraspQuery(std::vector<RobotState>& path, std::string grasp_dir = "/home/itamar/work/code/ros/assembly_ws/src/smpl_ztp/src/ros/data");
+
     void getLimits();
 
 private:
@@ -117,7 +119,9 @@ private:
     moveit::planning_interface::PlanningSceneInterface m_planning_scene_interface;
 
     void WriteRegions();
-    void ReadRegions();
+
+    void ReadRegions(std::string path = "/home/itamar/work/code/ros/assembly_ws/src/smpl_ztp/src/ros/data/myfile2.dat");
+
 };
 
 } // namespace smpl

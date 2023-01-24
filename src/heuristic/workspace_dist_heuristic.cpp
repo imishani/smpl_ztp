@@ -124,9 +124,9 @@ int WorkspaceDistHeuristic::GetFromToHeuristic(int from_id, int to_id)
     //     return (int)(FIXED_POINT_RATIO * computeJointDistance(s, t));
     // } else {
         // printf("here3 %d %d\n", from_id, to_id);
-        const RobotState s = m_ers->extractState(from_id);
-        const RobotState t = m_ers->extractState(to_id);
-        return (int)(FIXED_POINT_RATIO * computeJointDistance(s, t));
+    const RobotState s = m_ers->extractState(from_id);
+    const RobotState t = m_ers->extractState(to_id);
+    return (int)(FIXED_POINT_RATIO * computeJointDistance(s, t));
     // }
 }
 

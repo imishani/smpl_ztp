@@ -734,7 +734,14 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    if (!planner.solveZero(planning_scene, req, res, query)) {
+    bool random_query = false;
+    if (!ph.getParam("random_query", random_query)) {
+        ROS_INFO_STREAM(ph.getNamespace() << "random_query");
+        ROS_ERROR("Failed to read 'random_query' from the param server");
+        return 1;
+    }
+
+    if (!planner.solveZero(planning_scene, req, res, query, random_query=random_query)) {
         ROS_ERROR("Failed to plan.");
         return 1;
     }

@@ -464,6 +464,47 @@ bool WorkspaceLatticeZero::SampleRobotState(RobotState& joint_state, WorkspaceSt
     return true;
 }
 
+bool WorkspaceLatticeZero::SampleRobotStateOrientation(RobotState& joint_state, WorkspaceState& workspace_state)
+    {
+        for (int i = 3; i < workspace_state.size() ; ++i) {
+            workspace_state[i] = m_distribution[i](m_generator);
+        }
+
+        // normalize and project to center
+        // normalize_euler_zyx(&workspace_state[3]);
+        WorkspaceCoord workspace_coord;
+        stateWorkspaceToCoord(workspace_state, workspace_coord);
+        stateCoordToWorkspace(workspace_coord, workspace_state);
+
+        if (!stateWorkspaceToRobot(workspace_state, joint_state)) {
+            SMPL_DEBUG_NAMED("graph", "Unable to sample robot state: Invalid IK");
+            return false;
+        }
+
+        // Collision check`
+        if (!collisionChecker()->isStateValid(joint_state, true)) {
+            SMPL_DEBUG_NAMED("graph", "Unable to sample robot state: Collision");
+            return false;
+        }
+
+        WorkspaceState workspace_state_FK;
+        stateRobotToWorkspace(joint_state, workspace_state_FK);
+
+        RobotState joint_states_deg;
+        for (double i : joint_state) {
+            joint_states_deg.push_back(smpl::to_degrees(i));
+        }
+
+        SMPL_DEBUG_NAMED("graph", "Sampled State");
+        SMPL_DEBUG_STREAM_NAMED("graph.expands", "    workspace state: " << workspace_state);
+        SMPL_DEBUG_STREAM_NAMED("graph.expands", "    workspace coord: " << workspace_coord);
+        SMPL_DEBUG_STREAM_NAMED("graph.expands", "    joint state    : " << joint_states_deg);
+        SMPL_DEBUG_STREAM_NAMED("graph.expands", "    FK workspace state: " << workspace_state_FK);
+
+        return true;
+    }
+
+
 bool WorkspaceLatticeZero::SearchForValidIK(const GoalConstraint goal, std::vector<double>& angles)
 {
     return stateWorkspaceToRobot(goal.angles, angles); // With ! or not?
@@ -472,7 +513,6 @@ bool WorkspaceLatticeZero::SearchForValidIK(const GoalConstraint goal, std::vect
 
 int WorkspaceLatticeZero::FindRegionContainingState(const RobotState& joint_state)
 {
-    // TODO: Make here three overloaded functions for the different types of inputs
     // Where the base function takes ws_coord and the other two takes joint state and workspace state
     WorkspaceState workspace_state;
     WorkspaceCoord workspace_coord;
@@ -519,7 +559,7 @@ int WorkspaceLatticeZero::FindRegionContainingState(const RobotState& joint_stat
     }
 }
 
-int WorkspaceLatticeZero::FindRegionContainingState_WS(const WorkspaceState& ws_state) {
+int WorkspaceLatticeZero::FindRegionContainingState_WS(const WorkspaceState& ws_state, bool position_only) {
 
     WorkspaceCoord workspace_coord;
     stateWorkspaceToCoord(ws_state, workspace_coord);
@@ -533,10 +573,24 @@ int WorkspaceLatticeZero::FindRegionContainingState_WS(const WorkspaceState& ws_
         WorkspaceCoord workspace_coord;
         stateWorkspaceToCoord(r.state, workspace_coord);
         int attractor_state_id = createState(workspace_coord);
-        RobotHeuristic* h = heuristic(0);
-        int dsum = h->GetFromToHeuristic(query_state_id, attractor_state_id);
-                SMPL_DEBUG_STREAM_NAMED("graph.expands", "    query state:     " << ws_state);
-                SMPL_DEBUG_STREAM_NAMED("graph.expands", "    attractor state: " << r.state);
+        double dsum {INT_MAX};
+        if (!position_only){
+            RobotHeuristic* h = heuristic(0);
+            dsum = h->GetFromToHeuristic(query_state_id, attractor_state_id);
+        }
+        else {
+            const RobotState s = extractState(query_state_id);
+            const RobotState t = extractState(attractor_state_id);
+            ROS_INFO_STREAM("s slicing: " << RobotState(s.begin(), s.begin()+3));
+            dsum = 0.0;
+            for (size_t i {0}; i < 3; ++i) {
+                double dj = (s[i] - t[i]);
+                dsum += dj*dj;
+            }
+            dsum = std::sqrt(dsum);
+        }
+        SMPL_DEBUG_STREAM_NAMED("graph.expands", "    query state:     " << ws_state);
+        SMPL_DEBUG_STREAM_NAMED("graph.expands", "    attractor state: " << r.state);
 
         if (dsum < r.radius || dsum == 0) {
             // printf("dsum %d radius %u id1 %d id2 %d\n", dsum, r.radius, query_state_id, attractor_state_id);
@@ -549,11 +603,11 @@ int WorkspaceLatticeZero::FindRegionContainingState_WS(const WorkspaceState& ws_
     }
 
     if (covered) {
-                SMPL_DEBUG_NAMED("graph", "Attractor State of Containing Region %d", reg_idx);
+        SMPL_DEBUG_NAMED("graph", "Attractor State of Containing Region %d", reg_idx);
         return reg_idx;
     }
     else {
-                SMPL_INFO_STREAM_NAMED("graph.expands", "  start workspace_state: " << ws_state);
+        SMPL_INFO_STREAM_NAMED("graph.expands", "  start workspace_state: " << ws_state);
         return -1;
     }
 }

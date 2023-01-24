@@ -1,6 +1,7 @@
 <launch>
     <arg name="debug" default="false"/>
     <arg name="query" default="true"/>
+    <arg name="random_query" default="true"/>
 <!--    If running UR10 already, then there is no need to load the URDF again.. else, uncomment the line:-->
 <!--    <param name="robot_description" command="$(find xacro)/xacro '$(find ur_description)/urdf/ur10_robotiq85_gripper.xacro'"/>-->
 
@@ -23,6 +24,8 @@
         <param name="planning_frame" value="base_link"/> <!-- odom_combined -->
         <rosparam unless="$(arg query)" param="query"> false </rosparam>
         <rosparam if="$(arg query)" param="query"> true </rosparam>
+        <rosparam unless="$(arg random_query)" param="random_query"> false </rosparam>
+        <rosparam if="$(arg random_query)" param="random_query"> true </rosparam>
         <!-- 1. robot model (for planning) -->
         <rosparam param="robot_model">
             group_name: manipulator

@@ -468,7 +468,8 @@ bool PlannerInterface::solveZero(
     const moveit_msgs::PlanningScene& planning_scene,
     const moveit_msgs::MotionPlanRequest& req,
     moveit_msgs::MotionPlanResponse& res,
-    bool query)
+    bool query,
+    bool random_query)
 {
     ROS_INFO("Solve Zero");
 
@@ -594,8 +595,20 @@ bool PlannerInterface::solveZero(
         ROS_INFO("Preprocessing Start Region");
         m_zero_planner->PreProcess(initial_positions);
     }
+    else if (!random_query) {
+        goal.ws_state.resize(6);
+        goal.ws_state[0] = goal.pose.translation()[0];
+        goal.ws_state[1] = goal.pose.translation()[1];
+        goal.ws_state[2] = goal.pose.translation()[2];
+//        while (!task_space_->SampleRobotStateOrientation(goal.angles, goal.ws_state));
+        m_zero_planner->setStartAndGoal(initial_positions, goal);
+        auto now = clock::now();
+        m_zero_planner->GraspQuery(path);
+        ROS_INFO_STREAM("Goal ws state: \n" << "Translation:" << goal.ws_state[0] << " " << goal.ws_state[1] << " " << goal.ws_state[2]);
+        ROS_INFO_STREAM("Rotation:" << goal.ws_state[3] << " " << goal.ws_state[4] << " " << goal.ws_state[5]);
+    }
     else {
-        int num_queries = 10;
+        int num_queries = 1;
         double total_time = 0.0;
         double best_time = 10000.0;
         double worst_time = 0.0;

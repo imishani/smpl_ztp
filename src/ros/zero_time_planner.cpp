@@ -661,6 +661,61 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
     m_planner_zero->force_planning_from_scratch_and_free_memory();
 }
 
+void ZeroTimePlanner::GraspQuery(std::vector<RobotState> &path, std::string grasp_dir) {
+    ROS_INFO("Grasp Query");
+    ROS_INFO("Updating search mode");
+    m_task_space->UpdateSearchMode(QUERY);
+
+    /// Loop over grasping options:
+    boost::filesystem::directory_iterator end_itr;
+    for (boost::filesystem::directory_iterator itr(grasp_dir); itr != end_itr; ++itr) {
+        if (boost::filesystem::is_directory(itr->status())) {
+            std::string grasp_dir = itr->path().string();
+            std::string grasp_name = itr->path().filename().string();
+            ROS_INFO("Grasp: %s", grasp_name.c_str());
+            std::string grasp_file = grasp_dir + "/" + grasp_name;
+
+            m_regions.clear();
+            m_task_space->PassRegions(&m_regions, &m_iregions);
+
+            ReadRegions(grasp_file);
+
+            ROS_INFO("Regions: %zu", m_regions.size());
+
+            // TODO: Add a check to see if goal is in global XYZ goal region
+
+            // Look for regions that contain the goal (position only)
+            auto now = clock::now();
+            ROS_INFO("Looking for region containing start state");
+            int reg_idx = m_task_space->FindRegionContainingState_WS(m_goal.ws_state, position_only = true);
+            auto find_time = to_seconds(clock::now() - now);
+            ROS_INFO("FIND TIME %f", find_time);
+            if (reg_idx == -1) {
+                ROS_INFO_STREAM("Query start state not covered in file: " << grasp_name);
+                continue;
+            }
+            m_goal.ws_state[3] = m_regions[reg_idx].state[3];
+            m_goal.ws_state[4] = m_regions[reg_idx].state[4];
+            m_goal.ws_state[5] = m_regions[reg_idx].state[5];
+
+            // Normalize:
+            WorkspaceCoord ws_coord;
+            m_task_space->stateWorkspaceToCoord(m_goal.ws_state, ws_coord);
+            m_task_space->stateCoordToWorkspace(ws_coord, m_goal.ws_state);
+
+            if (!m_task_space->stateWorkspaceToRobot(m_goal.ws_state, m_goal.angles)) {
+                ROS_INFO_STREAM("Failed to find IK solution for goal. (File: " << grasp_name << ")");
+                continue;
+            }
+
+
+
+
+
+        }
+    }
+}
+
 void ZeroTimePlanner::WriteRegions()
 {
     // sort
@@ -671,20 +726,19 @@ void ZeroTimePlanner::WriteRegions()
     });
 
 	ROS_INFO("Writing regions to file");
-
-    boost::filesystem::path myFile = "/home/itamar/work/code/ros/assembly_ws/src/smpl_ztp/src/ros/myfile3.dat"; //boost::filesystem::current_path() /
+    boost::filesystem::path myFile = "/home/itamar/work/code/ros/assembly_ws/src/smpl_ztp/src/ros/data/myfile3.dat"; //boost::filesystem::current_path() /
     std::cout << myFile;
     boost::filesystem::ofstream ofs(myFile);
     boost::archive::text_oarchive ta(ofs);
     ta << m_regions;
 }
 
-void ZeroTimePlanner::ReadRegions()
+void ZeroTimePlanner::ReadRegions(std::string path)
 {
 	ROS_INFO("Reading regions from file");
     // getchar();
     try {
-        boost::filesystem::path myFile = "/home/itamar/work/code/ros/assembly_ws/src/smpl_ztp/src/ros/myfile3.dat"; // boost::filesystem::current_path() /
+        boost::filesystem::path myFile = path; // boost::filesystem::current_path() /
         boost::filesystem::ifstream ifs(myFile/*.native()*/);
         boost::archive::text_iarchive ta(ifs);
         ta >> m_regions;

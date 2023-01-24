@@ -147,11 +147,13 @@ public:
 
     bool SampleRobotState(RobotState& joint_state, WorkspaceState& workspace_state);
 
+    bool SampleRobotStateOrientation(RobotState& joint_state, WorkspaceState& workspace_state);
+
     bool SearchForValidIK(const GoalConstraint goal, std::vector<double>& angles);
 
     int FindRegionContainingState(const RobotState& joint_state);
 
-    int FindRegionContainingState_WS(const WorkspaceState& workspace_state);
+    int FindRegionContainingState_WS(const WorkspaceState& workspace_state, bool position_only=false);
 
     bool IsRobotStateInGoalRegion(const RobotState& joint_state);
 
