@@ -741,7 +741,7 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    if (!planner.solveZero(planning_scene, req, res, query, random_query=random_query)) {
+    if (!planner.solveZero(planning_scene, req, res, query, random_query)) {
         ROS_ERROR("Failed to plan.");
         return 1;
     }

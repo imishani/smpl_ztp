@@ -665,58 +665,157 @@ void ZeroTimePlanner::GraspQuery(std::vector<RobotState> &path, std::string gras
     ROS_INFO("Grasp Query");
     ROS_INFO("Updating search mode");
     m_task_space->UpdateSearchMode(QUERY);
-
+    boost::filesystem::path path_dir = grasp_dir;
     /// Loop over grasping options:
     boost::filesystem::directory_iterator end_itr;
-    for (boost::filesystem::directory_iterator itr(grasp_dir); itr != end_itr; ++itr) {
-        if (boost::filesystem::is_directory(itr->status())) {
-            std::string grasp_dir = itr->path().string();
-            std::string grasp_name = itr->path().filename().string();
-            ROS_INFO("Grasp: %s", grasp_name.c_str());
-            std::string grasp_file = grasp_dir + "/" + grasp_name;
+    for (boost::filesystem::directory_iterator itr(path_dir); itr != end_itr; ++itr) {
+        std::string grasp_dir_ = itr->path().string();
+        std::string grasp_name = itr->path().filename().string();
+        ROS_INFO("Grasp dir: %s", grasp_dir_.c_str());
+        ROS_INFO("Grasp: %s", grasp_name.c_str());
 
-            m_regions.clear();
-            m_task_space->PassRegions(&m_regions, &m_iregions);
+        m_regions.clear();
+        m_task_space->PassRegions(&m_regions, &m_iregions);
 
-            ReadRegions(grasp_file);
+        ReadRegions(grasp_dir_);
 
-            ROS_INFO("Regions: %zu", m_regions.size());
+        ROS_INFO("Regions: %zu", m_regions.size());
 
-            // TODO: Add a check to see if goal is in global XYZ goal region
+        // TODO: Add a check to see if goal is in global XYZ goal region
 
-            // Look for regions that contain the goal (position only)
-            auto now = clock::now();
-            ROS_INFO("Looking for region containing start state");
-            int reg_idx = m_task_space->FindRegionContainingState_WS(m_goal.ws_state, position_only = true);
-            auto find_time = to_seconds(clock::now() - now);
-            ROS_INFO("FIND TIME %f", find_time);
-            if (reg_idx == -1) {
-                ROS_INFO_STREAM("Query start state not covered in file: " << grasp_name);
-                continue;
-            }
-            m_goal.ws_state[3] = m_regions[reg_idx].state[3];
-            m_goal.ws_state[4] = m_regions[reg_idx].state[4];
-            m_goal.ws_state[5] = m_regions[reg_idx].state[5];
-
-            // Normalize:
-            WorkspaceCoord ws_coord;
-            m_task_space->stateWorkspaceToCoord(m_goal.ws_state, ws_coord);
-            m_task_space->stateCoordToWorkspace(ws_coord, m_goal.ws_state);
-
-            if (!m_task_space->stateWorkspaceToRobot(m_goal.ws_state, m_goal.angles)) {
-                ROS_INFO_STREAM("Failed to find IK solution for goal. (File: " << grasp_name << ")");
-                continue;
-            }
-
-
-
-
-
+        ///@note Look for regions that contain the goal (position only)
+        auto now = clock::now();
+        ROS_INFO("Looking for region containing start state");
+        int reg_idx = m_task_space->FindRegionContainingState_WS(m_goal.ws_state, true);
+        auto find_time = to_seconds(clock::now() - now);
+        ROS_INFO("FIND TIME %f", find_time);
+        if (reg_idx == -1) {
+            ROS_INFO_STREAM("Query start state not covered in file: " << grasp_name);
+            continue;
         }
+        m_goal.ws_state[3] = m_regions[reg_idx].state[3];
+        m_goal.ws_state[4] = m_regions[reg_idx].state[4];
+        m_goal.ws_state[5] = m_regions[reg_idx].state[5];
+
+        // Normalize:
+        WorkspaceCoord ws_coord;
+        m_task_space->stateWorkspaceToCoord(m_goal.ws_state, ws_coord);
+        m_task_space->stateCoordToWorkspace(ws_coord, m_goal.ws_state);
+
+        if (!m_task_space->stateWorkspaceToRobot(m_goal.ws_state, m_goal.angles)) {
+            ROS_INFO_STREAM("Failed to find IK solution for goal. (File: " << grasp_name << ")");
+            continue;
+        }
+
+        RobotState start_state;
+        start_state = m_goal.angles;
+
+        m_task_space->setStart(start_state);
+        const int start_id = m_task_space->getStartStateID();
+        if (start_id == -1) {
+            ROS_ERROR("No start state has been set in workspace lattice");
+            return;
+        }
+
+        if (m_planner_zero->set_start(start_id) == 0) {
+            ROS_ERROR("Failed to set start state");
+            return;
+        }
+
+        GoalConstraint goal;
+        goal.type = GoalType::JOINT_STATE_GOAL;
+    //    WorkspaceState goal_workspace_state = m_regions[reg_idx].state;
+    //    m_task_space->stateWorkspaceToRobot(goal_workspace_state, goal.angles);
+        goal.angles = m_regions[reg_idx].state;
+        m_task_space->setGoal(goal);
+
+        // set sbpl planner goal
+        const int goal_id = m_task_space->getGoalStateID();
+        if (goal_id == -1) {
+            ROS_ERROR("No goal state has been set");
+            return;
+        }
+
+        if (m_planner_zero->set_goal(goal_id) == 0) {
+            ROS_ERROR("Failed to set planner goal state");
+            return;
+        }
+
+        printf("start id %d goal id %d\n", start_id, goal_id);
+        // getchar();
+
+        bool b_ret = false;
+        std::vector<int> solution_state_ids;
+
+        // reinitialize the search space
+        m_planner_zero->force_planning_from_scratch();
+
+        // plan
+        int m_sol_cost;
+        now = clock::now();
+        b_ret = m_planner_zero->replan(100, &solution_state_ids, &m_sol_cost);
+        auto search_time = to_seconds(clock::now() - now);
+
+        ROS_INFO_NAMED(PI_LOGGER_ZERO, "Find time: %f, Search time: %f ",find_time, search_time);
+
+        // check if an empty plan was received.
+        if (b_ret && solution_state_ids.size() <= 0) {
+            ROS_WARN_NAMED(PI_LOGGER_ZERO, "Path returned by the planner is empty?");
+            b_ret = false;
+        }
+
+        if (!b_ret) {
+            ROS_WARN_STREAM("Planner failed in query phase, (File: " << grasp_name << ")");
+            continue;
+        }
+
+        // if a path is returned, then pack it into msg form
+        std::vector<RobotState> ztp_path;
+        if (b_ret && (solution_state_ids.size() > 0)) {
+            ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "Planning succeeded");
+            ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Num Expansions (Initial): %d", m_planner_zero->get_n_expands_init_solution());
+            ROS_INFO_NAMED(PI_LOGGER_ZERO, "  Num Expansions (Final): %d", m_planner_zero->get_n_expands());
+            ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Epsilon (Initial): %0.3f", m_planner_zero->get_initial_eps());
+            ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Epsilon (Final): %0.3f", m_planner_zero->get_solution_eps());
+            ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Time (Initial): %0.3f", m_planner_zero->get_initial_eps_planning_time());
+            ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Time (Final): %0.6f", m_planner_zero->get_final_eps_planning_time());
+            ROS_INFO_NAMED(PI_LOGGER_ZERO, "  Path Length (states): %zu", solution_state_ids.size());
+            ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "  Solution Cost: %d", m_sol_cost);
+
+            if (solution_state_ids.size() != m_planner_zero->get_n_expands() + 1) {
+                ROS_ERROR("Non zero expansion delay");
+                getchar();
+            }
+            ROS_INFO("Extracting path");
+            if (!m_task_space->extractPath(solution_state_ids, ztp_path)) {
+                ROS_ERROR("Failed to convert state id path to joint variable path");
+                continue;
+            }
+            ROS_INFO("Path extracted");
+            path = m_regions[reg_idx].path;
+
+            if (ztp_path.size() != 1) {
+                std::reverse(ztp_path.begin(), ztp_path.end());   // path from to attractor to goal
+                path.insert(
+                        path.end(),
+                        ztp_path.begin(),
+                        ztp_path.end());
+            }
+
+            ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "Preprocessed path length: %zu", m_regions[reg_idx].path.size());
+            ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "Query path length:        %zu", ztp_path.size());
+        }
+
+        m_task_space->ClearStates();
+        m_planner_zero->force_planning_from_scratch_and_free_memory();
+        return;
+//        }
+        ROS_ERROR("No path found");
+        return;
     }
 }
 
-void ZeroTimePlanner::WriteRegions()
+void ZeroTimePlanner::WriteRegions(std::string path)
 {
     // sort
     std::sort(m_regions.begin(), m_regions.end(), [] (const region &a,
@@ -726,7 +825,7 @@ void ZeroTimePlanner::WriteRegions()
     });
 
 	ROS_INFO("Writing regions to file");
-    boost::filesystem::path myFile = "/home/itamar/work/code/ros/assembly_ws/src/smpl_ztp/src/ros/data/myfile3.dat"; //boost::filesystem::current_path() /
+    boost::filesystem::path myFile = path; //boost::filesystem::current_path() /
     std::cout << myFile;
     boost::filesystem::ofstream ofs(myFile);
     boost::archive::text_oarchive ta(ofs);

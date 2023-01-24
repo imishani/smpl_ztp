@@ -596,6 +596,10 @@ bool PlannerInterface::solveZero(
         m_zero_planner->PreProcess(initial_positions);
     }
     else if (!random_query) {
+        double total_time = 0.0;
+        double best_time = 10000.0;
+        double worst_time = 0.0;
+
         goal.ws_state.resize(6);
         goal.ws_state[0] = goal.pose.translation()[0];
         goal.ws_state[1] = goal.pose.translation()[1];
@@ -604,8 +608,43 @@ bool PlannerInterface::solveZero(
         m_zero_planner->setStartAndGoal(initial_positions, goal);
         auto now = clock::now();
         m_zero_planner->GraspQuery(path);
-        ROS_INFO_STREAM("Goal ws state: \n" << "Translation:" << goal.ws_state[0] << " " << goal.ws_state[1] << " " << goal.ws_state[2]);
-        ROS_INFO_STREAM("Rotation:" << goal.ws_state[3] << " " << goal.ws_state[4] << " " << goal.ws_state[5]);
+//        ROS_INFO_STREAM("Goal ws state: \n" << "Translation:" << goal.ws_state[0] << " " << goal.ws_state[1] << " " << goal.ws_state[2]);
+//        ROS_INFO_STREAM("Rotation:" << goal.ws_state[3] << " " << goal.ws_state[4] << " " << goal.ws_state[5]);
+
+        res.planning_time = to_seconds(clock::now() - now);
+
+        if (res.planning_time < best_time)
+            best_time = res.planning_time;
+        if (res.planning_time > worst_time)
+            worst_time = res.planning_time;
+
+        total_time += res.planning_time;
+        ROS_INFO("ZTP query time: %f", res.planning_time);
+        // postProcessPath(path);
+        SV_SHOW_INFO_NAMED("trajectory", makePathVisualization(path));
+
+        ROS_DEBUG_NAMED(PI_LOGGER, "smoothed path:");
+        for (size_t pidx = 0; pidx < path.size(); ++pidx) {
+            const auto& point = path[pidx];
+            ROS_DEBUG_STREAM_NAMED(PI_LOGGER, "  " << pidx << ": " << point);
+        }
+
+        convertJointVariablePathToJointTrajectory(
+                path,
+                req.start_state.joint_state.header.frame_id,
+                req.start_state.multi_dof_joint_state.header.frame_id,
+                res.trajectory);
+        res.trajectory.joint_trajectory.header.seq = 0;
+        res.trajectory.joint_trajectory.header.stamp = ros::Time::now();
+
+        if (!m_params.plan_output_dir.empty()) {
+            writePath(res.trajectory_start, res.trajectory);
+        }
+
+        profilePath(res.trajectory.joint_trajectory);
+        //    removeZeroDurationSegments(traj);
+
+        m_res = res; // record the last result
     }
     else {
         int num_queries = 1;

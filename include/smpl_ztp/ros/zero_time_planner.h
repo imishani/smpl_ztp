@@ -118,7 +118,7 @@ private:
     std::unique_ptr<moveit::planning_interface::MoveGroupInterface> m_group;
     moveit::planning_interface::PlanningSceneInterface m_planning_scene_interface;
 
-    void WriteRegions();
+    void WriteRegions(std::string path = "/home/itamar/work/code/ros/assembly_ws/src/smpl_ztp/src/ros/data/myfile3.dat");
 
     void ReadRegions(std::string path = "/home/itamar/work/code/ros/assembly_ws/src/smpl_ztp/src/ros/data/myfile2.dat");
 

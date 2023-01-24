@@ -968,7 +968,6 @@ bool WorkspaceLatticeZero::extractPath(
             path.push_back(state_entry->state);
         }
     }
-
     return true;
 }
 
