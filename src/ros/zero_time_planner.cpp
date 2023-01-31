@@ -666,7 +666,7 @@ void ZeroTimePlanner::GraspQuery(std::vector<RobotState> &path, std::string gras
     ROS_INFO("Updating search mode");
     m_task_space->UpdateSearchMode(QUERY);
     boost::filesystem::path path_dir = grasp_dir;
-    /// Loop over grasping options:
+    // Loop over grasping options:
     boost::filesystem::directory_iterator end_itr;
     for (boost::filesystem::directory_iterator itr(path_dir); itr != end_itr; ++itr) {
         std::string grasp_dir_ = itr->path().string();
@@ -683,7 +683,7 @@ void ZeroTimePlanner::GraspQuery(std::vector<RobotState> &path, std::string gras
 
         // TODO: Add a check to see if goal is in global XYZ goal region
 
-        ///@note Look for regions that contain the goal (position only)
+        // Look for regions that contain the goal (position only)
         auto now = clock::now();
         ROS_INFO("Looking for region containing start state");
         int reg_idx = m_task_space->FindRegionContainingState_WS(m_goal.ws_state, true);
@@ -809,10 +809,9 @@ void ZeroTimePlanner::GraspQuery(std::vector<RobotState> &path, std::string gras
         m_task_space->ClearStates();
         m_planner_zero->force_planning_from_scratch_and_free_memory();
         return;
-//        }
-        ROS_ERROR("No path found");
-        return;
     }
+    ROS_ERROR("Couldn't find path");
+    return;
 }
 
 void ZeroTimePlanner::WriteRegions(std::string path)

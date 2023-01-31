@@ -80,9 +80,14 @@ public:
             const RobotState& start_state,
             const GoalConstraintZTP& goal);
 
+    /// @brief Pre-process the goal region according to the algorithm presented in the paper.
     void PreProcess(const RobotState& full_start_state);
+
+    /// @brief For a specific query of end-effector pose, looks for a feasible path.
     void Query(std::vector<RobotState>& path);
 
+    /// @brief Takes the goal position (x, y, z) and iterate over all grasp options (preprocessed files). When finds a
+    /// feasible solution, it returns the path.
     void GraspQuery(std::vector<RobotState>& path, std::string grasp_dir = "/home/itamar/work/code/ros/assembly_ws/src/smpl_ztp/src/ros/data");
 
     void getLimits();
