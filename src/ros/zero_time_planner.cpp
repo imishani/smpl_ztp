@@ -207,11 +207,11 @@ void ZeroTimePlanner::setStartAndGoal(
 
 void ZeroTimePlanner::InitMoveitOMPL()
 {
-    m_group.reset(new moveit::planning_interface::MoveGroupInterface("manipulator"));
+    m_group.reset(new moveit::planning_interface::MoveGroupInterface("manipulator_1"));
     ROS_INFO("Planning path with OMPL");
 
     // Collision objects
-    auto object_filename = "/home/itamar/work/code/ros/assembly_ws/src/smpl_ztp/env/tabletop.env";
+    auto object_filename = "package://smpl_ztp/env/tabletop.env";
     auto objects = GetCollisionObjects(object_filename, m_group->getPlanningFrame());
     std::vector<moveit_msgs::CollisionObject> collision_objects;
 
@@ -241,11 +241,11 @@ bool ZeroTimePlanner::PlanPathFromStartToAttractorOMPL(const RobotState& attract
     // tf::poseEigenToMsg(m_goal.pose, target_pose);
     // m_group->setPoseTarget(target_pose);
     robot_state::RobotState goal_state(*m_group->getCurrentState());
-    goal_state.setJointGroupPositions("manipulator", attractor);    // right_arm
+    goal_state.setJointGroupPositions("manipulator_1", attractor);    // right_arm
     m_group->setJointValueTarget(goal_state);
 
     robot_state::RobotState start_state(*m_group->getCurrentState());
-    start_state.setJointGroupPositions("manipulator", m_start_state);   // right_arm
+    start_state.setJointGroupPositions("manipulator_1", m_start_state);   // right_arm
     m_group->setStartState(start_state);
     ROS_INFO_STREAM(m_group->getName());
     // plan
@@ -273,7 +273,8 @@ bool ZeroTimePlanner::PlanPathFromStartToAttractorOMPL(const RobotState& attract
     return true;
 }
 
-bool ZeroTimePlanner::PlanPathFromStartToAttractorSMPL(const RobotState& attractor, std::vector<RobotState>& path)
+bool ZeroTimePlanner::PlanPathFromStartToAttractorSMPL(const RobotState& attractor,
+                                                       std::vector<RobotState>& path)
 {
     ROS_INFO("Planning path with SMPL");
 
@@ -811,7 +812,6 @@ void ZeroTimePlanner::GraspQuery(std::vector<RobotState> &path, std::string gras
         return;
     }
     ROS_ERROR("Couldn't find path");
-    return;
 }
 
 void ZeroTimePlanner::WriteRegions(std::string path)

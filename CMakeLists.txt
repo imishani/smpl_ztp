@@ -29,12 +29,16 @@ find_package(
         moveit_ros_planning_interface
         trajectory_msgs
         moveit_msgs)
+
 find_package(smpl REQUIRED)
 
 find_package(sbpl REQUIRED)
 set(sbpl_INCLUDE_DIRS ${SBPL_INCLUDE_DIRS})
 set(sbpl_LIBRARIES ${SBPL_LIBRARIES})
 
+find_package(scene_builder REQUIRED)
+set(scene_builder_INCLUDE_DIRS ../scene_builder/include)    # Change this to be general..
+set(scene_builder_LIBRARIES ${SCENE_BUILDER_LIBRARIES})
 
 catkin_package(
     INCLUDE_DIRS
@@ -45,7 +49,8 @@ catkin_package(
     DEPENDS
         Boost
         sbpl
-        smpl)
+        smpl
+        scene_builder)
 
 ##########################
 # Build smpl_ztp library #
@@ -71,11 +76,19 @@ target_link_libraries(smpl_ztp PUBLIC smpl::smpl)
 target_link_libraries(smpl_ztp PUBLIC ${Boost_LIBRARIES})
 target_link_libraries(smpl_ztp PUBLIC ${SBPL_LIBRARIES})
 
+target_link_libraries(smpl_ztp PUBLIC ${scene_builder_LIBRARIES})
+target_include_directories(smpl_ztp SYSTEM PUBLIC ${scene_builder_INCLUDE_DIRS})
+
 #######################################
 # Build call_planner_ztp test program #
 #######################################
 
-add_executable(call_planner_ztp src/call_planner.cpp src/ros/planner_interface.cpp src/collision_space_scene.cpp)    # src/ros/planner_interface.cpp
+add_executable(call_planner_ztp src/call_planner.cpp
+                                src/ros/planner_interface.cpp
+                                src/collision_space_scene.cpp
+                                )    # src/ros/planner_interface.cpp
+
+add_executable(${PROJECT_NAME}_frame src/frame_planner.cpp src/ros/planner_interface.cpp src/collision_space_scene.cpp src/ros/moveit_collision_interface.cpp)
 
 target_compile_options(smpl_ztp PUBLIC -std=c++11)
 
@@ -89,6 +102,19 @@ target_link_libraries(call_planner_ztp PRIVATE smpl_ztp)
 target_link_libraries(call_planner_ztp PRIVATE ${catkin_LIBRARIES})
 target_link_libraries(call_planner_ztp PRIVATE ${SBPL_LIBRARIES})
 target_link_libraries(call_planner_ztp PRIVATE ${Boost_LIBRARIES})
+
+# Target for frame planner
+target_include_directories(${PROJECT_NAME}_frame PRIVATE include)
+target_include_directories(${PROJECT_NAME}_frame SYSTEM PRIVATE ${catkin_INCLUDE_DIRS})
+target_include_directories(${PROJECT_NAME}_frame SYSTEM PRIVATE ${Boost_INCLUDE_DIRS})
+target_include_directories(${PROJECT_NAME}_frame SYSTEM PRIVATE ${EIGEN3_INCLUDE_DIR})
+target_include_directories(${PROJECT_NAME}_frame SYSTEM PRIVATE ${SBPL_INCLUDE_DIRS})
+
+target_link_libraries(${PROJECT_NAME}_frame PRIVATE smpl_ztp)
+target_link_libraries(${PROJECT_NAME}_frame PRIVATE ${catkin_LIBRARIES})
+target_link_libraries(${PROJECT_NAME}_frame PRIVATE ${SBPL_LIBRARIES})
+target_link_libraries(${PROJECT_NAME}_frame PRIVATE ${Boost_LIBRARIES})
+target_link_libraries(${PROJECT_NAME}_frame PRIVATE ${scene_builder_LIBRARIES})
 
 ############################
 # Install smpl_ztp library #

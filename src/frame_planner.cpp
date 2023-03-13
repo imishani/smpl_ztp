@@ -1,5 +1,5 @@
 ////////////////////////////////////////////////////////////////////////////////
-// Copyright (c) 2012, Benjamin Cohen
+// Copyright (c) 2023, Itamar Mishani
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -27,7 +27,10 @@
 // POSSIBILITY OF SUCH DAMAGE.
 ////////////////////////////////////////////////////////////////////////////////
 
-/// \author Benjamin Cohen
+/// \file frame_planner.cpp
+/// \author Itamar Mishani
+/// \date 03/10/2023
+
 
 // standard includes
 #include <cstdlib>
@@ -61,9 +64,9 @@
 
 
 void FillGoalConstraint(
-    const std::vector<double>& pose,
-    std::string frame_id,
-    moveit_msgs::Constraints& goals)
+        const std::vector<double>& pose,
+        std::string frame_id,
+        moveit_msgs::Constraints& goals)
 {
     if (pose.size() < 6) {
         return;
@@ -100,11 +103,11 @@ void FillGoalConstraint(
 }
 
 auto GetCollisionCube(
-    const geometry_msgs::Pose& pose,
-    std::vector<double>& dims,
-    const std::string& frame_id,
-    const std::string& id)
-    -> moveit_msgs::CollisionObject
+        const geometry_msgs::Pose& pose,
+        std::vector<double>& dims,
+        const std::string& frame_id,
+        const std::string& id)
+-> moveit_msgs::CollisionObject
 {
     moveit_msgs::CollisionObject object;
     object.id = id;
@@ -125,10 +128,10 @@ auto GetCollisionCube(
 }
 
 auto GetCollisionCubes(
-    std::vector<std::vector<double>>& objects,
-    std::vector<std::string>& object_ids,
-    const std::string& frame_id)
-    -> std::vector<moveit_msgs::CollisionObject>
+        std::vector<std::vector<double>>& objects,
+        std::vector<std::string>& object_ids,
+        const std::string& frame_id)
+-> std::vector<moveit_msgs::CollisionObject>
 {
     std::vector<moveit_msgs::CollisionObject> objs;
     std::vector<double> dims(3,0);
@@ -157,9 +160,9 @@ auto GetCollisionCubes(
 }
 
 auto GetCollisionObjects(
-    const std::string& filename,
-    const std::string& frame_id)
-    -> std::vector<moveit_msgs::CollisionObject>
+        const std::string& filename,
+        const std::string& frame_id)
+-> std::vector<moveit_msgs::CollisionObject>
 {
     char sTemp[1024];
     int num_obs = 0;
@@ -208,8 +211,8 @@ auto GetCollisionObjects(
 }
 
 bool ReadInitialConfiguration(
-    ros::NodeHandle& nh,
-    moveit_msgs::RobotState& state)
+        ros::NodeHandle& nh,
+        moveit_msgs::RobotState& state)
 {
     XmlRpc::XmlRpcValue xlist;
 
@@ -387,29 +390,10 @@ bool ReadPlannerConfig(const ros::NodeHandle &nh, PlannerConfig &config)
     return true;
 }
 
-auto SetupKDLRobotModel(const std::string& urdf, const RobotModelConfig &config)
-    -> std::unique_ptr<smpl::KDLRobotModel>
-{
-    if (config.kinematics_frame.empty() || config.chain_tip_link.empty()) {
-        ROS_ERROR("Failed to retrieve param 'kinematics_frame' or 'chain_tip_link' from the param server");
-        return NULL;
-    }
-
-    ROS_INFO("Construct Generic KDL Robot Model");
-    std::unique_ptr<smpl::KDLRobotModel> rm(new smpl::KDLRobotModel);
-
-    if (!rm->init(urdf, config.kinematics_frame, config.chain_tip_link)) {
-        ROS_ERROR("Failed to initialize robot model.");
-        return NULL;
-    }
-
-    return std::move(rm);
-}
-
 auto SetupMoveItRobotModel(const std::string& urdf, const RobotModelConfig &config,
                            std::shared_ptr<moveit::core::RobotModel>& robot_model,
-                           std::string group_name = "manipulator_1") // TODO: delete this. We have the group name in config
-    -> std::unique_ptr<sbpl_interface::MoveItRobotModel>
+                           const std::string& group_name = "manipulator_1") // TODO: delete this. We have the group name in config
+-> std::unique_ptr<sbpl_interface::MoveItRobotModel>
 {
     std::unique_ptr<sbpl_interface::MoveItRobotModel> rm;
 
@@ -472,7 +456,7 @@ void SetJoints(moveit_msgs::RobotState &state,
 
 int main(int argc, char* argv[])
 {
-    ros::init(argc, argv, "smpl_ztp");
+    ros::init(argc, argv, "frame_ztp");
     ros::NodeHandle nh;
     ros::NodeHandle ph("~");
 
@@ -522,8 +506,7 @@ int main(int argc, char* argv[])
         return 1;
     }
     auto rm = SetupMoveItRobotModel(urdf, robot_config, robot_model);
-//    auto rm_kdl = SetupKDLRobotModel(urdf, robot_config);
-//    auto rm2 = SetupMoveItRobotModel(urdf, robot_config, robot_model, "gripper"); // Need to edit config files
+
     ////////////////////
     // Occupancy Grid //
     ////////////////////

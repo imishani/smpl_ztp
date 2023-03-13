@@ -3,8 +3,8 @@
     <name>smpl_ztp</name>
     <version>0.0.0</version>
     <description>The smpl_ztp library</description>
-    <author email="TODO@TODO.com">Fahad Islam</author>
-    <maintainer email="TODO@TODO.com">Fahad Islam</maintainer>
+    <author email="TODO@TODO.com">Itamar Mishani</author>
+    <maintainer email="TODO@TODO.com">Itamar Mishani</maintainer>
     <license>TODO</license>
 
     <buildtool_depend>catkin</buildtool_depend>
@@ -22,5 +22,6 @@
     <depend>moveit_ros_planning_interface</depend>
     <depend>trajectory_msgs</depend>
     <depend>moveit_msgs</depend>
+    <depend>scene_builder</depend>
     <!--depend>sbpl</depend-->
 </package>
