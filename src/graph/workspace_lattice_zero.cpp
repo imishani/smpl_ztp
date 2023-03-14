@@ -209,8 +209,6 @@ bool WorkspaceLatticeZero::IsStateValid(int state_id)
         // ROS_WARN("IK failed");
         return false;
     }
-    // SMPL_INFO_STREAM_NAMED("graph.expands", "  seeed state: " << m_ik_seed);
-    // SMPL_INFO_STREAM_NAMED("graph.expands", "  robot state: " << entry->state);
 
     if (!collisionChecker()->isStateValid(
         entry->state, true)) {
@@ -246,7 +244,6 @@ bool WorkspaceLatticeZero::IsStateToStateValid(int from_state_id, int to_state_i
         }
     }
 // #endif
-
     if (!collisionChecker()->isStateToStateValid(from_entry->state, to_entry->state)) {
         return false;
     }
@@ -380,7 +377,6 @@ bool WorkspaceLatticeZero::SampleRobotState(RobotState& joint_state, WorkspaceSt
     stateWorkspaceToCoord(workspace_state, workspace_coord);
     stateCoordToWorkspace(workspace_coord, workspace_state);
 
-
     /* ######## Testing Euler Angles: ######## */
     typedef Eigen::EulerSystem<Eigen::EULER_Z, Eigen::EULER_Y, Eigen::EULER_X> EulerSys;
     typedef Eigen::EulerAngles<double, EulerSys> EulerAngles;
@@ -388,11 +384,14 @@ bool WorkspaceLatticeZero::SampleRobotState(RobotState& joint_state, WorkspaceSt
     EulerAngles euler(workspace_state[5], workspace_state[4], workspace_state[3]);
     auto rot = euler.toRotationMatrix();
     ROS_INFO_STREAM("Rotation Matrix: \n" << rot);
+    // Stream also positions:
+    ROS_INFO_STREAM("Position: \n" << workspace_state[0] << " " << workspace_state[1] << " " << workspace_state[2]);
     // End
     if (!stateWorkspaceToRobot(workspace_state, joint_state)) {
         SMPL_DEBUG_NAMED("graph", "Unable to sample robot state: Invalid IK");
         return false;
     }
+
 
     /// Testing if the IK solution is true:
 //    robot_model_loader::RobotModelLoader robot_model_loader("robot_description");

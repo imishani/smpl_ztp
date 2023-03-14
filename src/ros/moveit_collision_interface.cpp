@@ -2,16 +2,26 @@
 // Created by itamar on 3/12/23.
 //
 
+#include <utility>
+
 #include "smpl_ztp/ros/moveit_collision_interface.hpp"
 
 smpl::collision::moveit_collision_interface::moveit_collision_interface() : CollisionChecker() {
 }
 
 bool smpl::collision::moveit_collision_interface::init(std::string &group_name,
-                                                       OccupancyGrid* grid) {
+                                                       OccupancyGrid* grid,
+                                                       std::string planning_frame) {
     group_name_ = group_name;
+    ros::AsyncSpinner spinner(1); spinner.start();
     move_group_ = std::make_shared<moveit::planning_interface::MoveGroupInterface>(group_name_);
+    // print current joint values
+    std::vector<double> joint_group_positions;
+    std::cout << move_group_->getCurrentJointValues().data() << std::endl;
     joint_model_group_ = move_group_->getCurrentState()->getJointModelGroup(group_name_);
+    active_joint_names_ = joint_model_group_->getActiveJointModelNames();
+
+    reference_frame_ = std::move(planning_frame);
 
     collision_result_.clear();
     collision_request_.group_name = group_name_;
@@ -21,23 +31,39 @@ bool smpl::collision::moveit_collision_interface::init(std::string &group_name,
     planning_scene_monitor_->startStateMonitor();
     planning_scene_monitor_->startWorldGeometryMonitor();
 
-    scene_builder_.set_frame_id(move_group_->getPlanningFrame());
+    // find the transform from the planning frame to the reference frame
+    // Not being used currently
+    // @{
+    tf::TransformListener tf_listener;
+    tf::StampedTransform transform;
+    try {
+        tf_listener.waitForTransform(move_group_->getPlanningFrame(), reference_frame_, ros::Time(0), ros::Duration(1.0));
+        tf_listener.lookupTransform(move_group_->getPlanningFrame(), reference_frame_, ros::Time(0), transform);
+    } catch (tf::TransformException &ex) {
+        ROS_ERROR("%s", ex.what());
+        return false;
+    }
+    // Use tf_eigen to transform
+    tf::poseTFToEigen(transform, transform_eigen_);
+    // @}
+
+    // initialize scene_builder
+    scene_builder_ = std::make_shared<scene::scene_builder>(reference_frame_); // TODO: change to planning frame
 
     m_grid = grid;
     m_wcm = std::make_shared<WorldCollisionModel>(m_grid);
-
+    spinner.stop();
     return true;
 }
 
 bool smpl::collision::moveit_collision_interface::isStateValid(const RobotState& state, bool verbose){
     // Convert RobotState to moveit_msgs::RobotState
     moveit_msgs::RobotState robot_state_msg;
-    robot_state_msg.joint_state.name = joint_model_group_->getJointModelNames();
+    robot_state_msg.joint_state.name = active_joint_names_;
+    // Express the state in the planning frame using transform_eigen_
     robot_state_msg.joint_state.position = state;
 
-    // Use moveit isStateValid to check for collisions for planning group:
-    planning_scene_monitor_->getPlanningScene()->isStateValid(robot_state_msg, group_name_, verbose);
-    return true;
+    return planning_scene_monitor_->getPlanningScene()->isStateValid(robot_state_msg, group_name_, verbose);
 }
 
 bool smpl::collision::moveit_collision_interface::isStateToStateValid(const RobotState& start, const RobotState& finish, bool verbose) {
@@ -62,8 +88,8 @@ bool smpl::collision::moveit_collision_interface::isStateToStateValid(const Robo
 bool smpl::collision::moveit_collision_interface::interpolatePath(const smpl::RobotState &start,
                                                                   const smpl::RobotState &finish,
                                                                   std::vector<RobotState> &traj) {
-    assert(start.size() == move_group_->getActiveJoints().size() &&
-    finish.size() == move_group_->getActiveJoints().size());
+    assert((start.size() == active_joint_names_.size()) &&
+    (finish.size() == active_joint_names_.size()));
 
     // check if start and finish are valid
     if (!isStateValid(start, false) || !isStateValid(finish, false)) {
@@ -71,7 +97,15 @@ bool smpl::collision::moveit_collision_interface::interpolatePath(const smpl::Ro
     }
     // Linear interpolation between start and finish
     const double res = 0.05;
-    const int num_steps = (finish[0] - start[0]) / res;
+    // Get the maximum distance between the two states
+    double max_dist = 0;
+    for (int i = 0; i < start.size(); i++) {
+        double dist = std::abs(start[i] - finish[i]);
+        if (dist > max_dist) {
+            max_dist = dist;
+        }
+    }
+    const int num_steps = max_dist / res;
     traj.resize(num_steps);
     for (int i = 0; i < num_steps; i++) {
         traj[i].resize(start.size());
@@ -127,8 +161,22 @@ auto smpl::collision::moveit_collision_interface::getCollisionModelVisualization
 }
 
 auto smpl::collision::moveit_collision_interface::getCollisionWorldVisualization() const -> visualization_msgs::MarkerArray {
-    visualization_msgs::MarkerArray markers;
-    return markers;
+    return m_wcm->getCollisionWorldVisualization();
+}
+
+auto smpl::collision::moveit_collision_interface::getBoundingBoxVisualization() const -> visual::Marker
+{
+    return m_grid->getBoundingBoxVisualization();
+}
+
+auto smpl::collision::moveit_collision_interface::getDistanceFieldVisualization() const -> visual::Marker
+{
+    return m_grid->getDistanceFieldVisualization();
+}
+
+auto smpl::collision::moveit_collision_interface::getOccupiedVoxelsVisualization() const -> visual::Marker
+{
+    return m_grid->getOccupiedVoxelsVisualization();
 }
 
 const std::string &smpl::collision::moveit_collision_interface::getReferenceFrame() const {
@@ -180,6 +228,18 @@ bool smpl::collision::moveit_collision_interface::removeObject(const smpl::colli
     // TODO: remove object from moveit world using scene_builder
 
     return true;
+}
+
+void smpl::collision::moveit_collision_interface::removeAllObjects() {
+    m_wcm->removeAllObjects();
+
+}
+
+smpl::Extension *smpl::collision::moveit_collision_interface::getExtension(size_t class_code) {
+    if (class_code == GetClassCode<CollisionChecker>()) {
+        return this;
+    }
+    return nullptr;
 }
 
 

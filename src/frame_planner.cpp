@@ -61,6 +61,7 @@
 #include "collision_space_scene.h"
 #include "pr2_allowed_collision_pairs.h"
 #include <smpl/console/console.h>
+#include <smpl_ztp/ros/moveit_collision_interface.hpp>
 
 
 void FillGoalConstraint(
@@ -515,7 +516,7 @@ int main(int argc, char* argv[])
     const double df_size_y = 3.0;
     const double df_size_z = 3.0;
     const double df_res = 0.02;
-    const double df_origin_x = -0.75;
+    const double df_origin_x = -0.50;
     const double df_origin_y = -1.5;
     const double df_origin_z = 0.0;
     const double max_distance = 1.8;
@@ -550,68 +551,95 @@ int main(int argc, char* argv[])
     ///////////////////////
     // Collision Checker //
     ///////////////////////
-    ROS_INFO("Create collision checker");
-    // This whole manage storage for all the scene objects and must outlive
-    // its associated CollisionSpace instance.
-    CollisionSpaceScene scene;
+//    ROS_INFO("Create collision checker");
+//    // This whole manage storage for all the scene objects and must outlive
+//    // its associated CollisionSpace instance.
+//    CollisionSpaceScene scene;
+//
+//    smpl::collision::CollisionModelConfig cc_conf;
+//    if (!smpl::collision::CollisionModelConfig::Load(ph, cc_conf)) { //TODO: change it to read from robot_collision_model
+//        ROS_ERROR("Failed to load Collision Model Config");
+//        return 1;
+//    }
+//
+//    smpl::collision::CollisionSpace cc;
+//    if (!cc.init(&grid, urdf, cc_conf,
+//                 robot_config.group_name, robot_config.planning_joints)) {
+//        ROS_ERROR("Failed to initialize Collision Space");
+//        return 1;
+//    }
+//
+//    if (cc.robotCollisionModel()->name() == "pr2") {
+//        initAllowedCollisionsPR2(cc);
+//    }
+//
+//    /////////////////
+//    // Scene Setup //
+//    /////////////////
+//
+//    scene.SetCollisionSpace(&cc);
+//    std::string object_filename;
+//    ph.param<std::string>("/object_filename", object_filename, "");
+//    SMPL_INFO("Object Filename: %s", object_filename.c_str());
+//    // read in collision objects from file and add to the scene
+//    if (!object_filename.empty()) {
+//        auto objects = GetCollisionObjects(object_filename, planning_frame);
+//        for (auto& object : objects) {
+//            scene.ProcessCollisionObjectMsg(object);
+//        }
+//    }
+//
+//    // read in start state from file and update the scene
+//    moveit_msgs::RobotState start_state; // Why here we use moveit_msgs::RobotState and not smpl::RobotState?
+//    if (!ReadInitialConfiguration(ph, start_state)) {
+//        ROS_ERROR("Failed to get initial configuration.");
+//        return 1;
+//    }
+//
+//    // TODO: Do I need to update here the robot_model (rm)?
+////    moveit::core::RobotStatePtr robot_state_(new moveit::core::RobotState(robot_model));
+//////    robot_state->setVariablePosition(start_state);
+////    robot_state_->setJointGroupPositions(
+////            robot_model->getJointModelGroup(robot_config.group_name),
+////            start_state.joint_state.position);
+////    rm->updateReferenceState(*robot_state_);
+//
+//    SetJoints(start_state, cc); // Update collision to start state
+//
+//    if (!scene.SetRobotState(start_state)) {
+//        ROS_ERROR("Failed to set start state on Collision Space Scene");
+//        return 1;
+//    }
+//
+//    cc.setWorldToModelTransform(Eigen::Isometry3d::Identity());
+////    SV_SHOW_INFO(grid.getDistanceFieldVisualization(0.2));
 
-    smpl::collision::CollisionModelConfig cc_conf;
-    if (!smpl::collision::CollisionModelConfig::Load(ph, cc_conf)) { //TODO: change it to read from robot_collision_model
-        ROS_ERROR("Failed to load Collision Model Config");
-        return 1;
-    }
+    // Defining moveit collision space
 
-    smpl::collision::CollisionSpace cc;
-    if (!cc.init(&grid, urdf, cc_conf,
-                 robot_config.group_name, robot_config.planning_joints)) {
-        ROS_ERROR("Failed to initialize Collision Space");
-        return 1;
-    }
-
-    if (cc.robotCollisionModel()->name() == "pr2") {
-        initAllowedCollisionsPR2(cc);
-    }
-
-    /////////////////
-    // Scene Setup //
-    /////////////////
-
-    scene.SetCollisionSpace(&cc);
-    std::string object_filename;
-    ph.param<std::string>("/object_filename", object_filename, "");
-    SMPL_INFO("Object Filename: %s", object_filename.c_str());
-    // read in collision objects from file and add to the scene
-    if (!object_filename.empty()) {
-        auto objects = GetCollisionObjects(object_filename, planning_frame);
-        for (auto& object : objects) {
-            scene.ProcessCollisionObjectMsg(object);
-        }
-    }
+    ROS_INFO("Create moveit collision checker");
+    smpl::collision::moveit_collision_interface cc;
+    cc.init(robot_config.group_name, &grid, planning_frame);
 
     // read in start state from file and update the scene
+    ROS_INFO("Read start state from file and update the scene");
     moveit_msgs::RobotState start_state; // Why here we use moveit_msgs::RobotState and not smpl::RobotState?
     if (!ReadInitialConfiguration(ph, start_state)) {
         ROS_ERROR("Failed to get initial configuration.");
         return 1;
     }
 
-    // TODO: Do I need to update here the robot_model (rm)?
-//    moveit::core::RobotStatePtr robot_state_(new moveit::core::RobotState(robot_model));
-////    robot_state->setVariablePosition(start_state);
-//    robot_state_->setJointGroupPositions(
-//            robot_model->getJointModelGroup(robot_config.group_name),
-//            start_state.joint_state.position);
-//    rm->updateReferenceState(*robot_state_);
+    // read in collision objects from file and add to the scene. Need to be done using scene_builder
 
-    SetJoints(start_state, cc); // Update collision to start state
-
-    if (!scene.SetRobotState(start_state)) {
-        ROS_ERROR("Failed to set start state on Collision Space Scene");
-        return 1;
-    }
-
-    cc.setWorldToModelTransform(Eigen::Isometry3d::Identity());
-//    SV_SHOW_INFO(grid.getDistanceFieldVisualization(0.2));
+//    std::string object_filename;
+//    ph.param<std::string>("/object_filename", object_filename, "");
+//    SMPL_INFO("Object Filename: %s", object_filename.c_str());
+//    // read in collision objects from file and add to the scene
+//    if (!object_filename.empty()) {
+//        auto objects = GetCollisionObjects(object_filename, planning_frame);
+//        for (auto& object : objects) {
+//            scene.ProcessCollisionObjectMsg(object);
+//        }
+//    }
 
 #ifdef KDL
     // The KDL Robot Model must be given the transform from the planning frame
@@ -627,7 +655,7 @@ int main(int argc, char* argv[])
     rm_kdl->setKinematicsToPlanningTransform(f, "what?");
 #endif
 
-    SV_SHOW_INFO(cc.getCollisionRobotVisualization());
+//    SV_SHOW_INFO(cc.getCollisionRobotVisualization());
     SV_SHOW_INFO(cc.getCollisionWorldVisualization());
     SV_SHOW_INFO(cc.getOccupiedVoxelsVisualization());
 
@@ -664,6 +692,10 @@ int main(int argc, char* argv[])
         ROS_ERROR("Failed to initialize Planner Interface");
         return 1;
     }
+
+    ROS_INFO("Planner discretesation Parameters:");
+    ROS_INFO_STREAM("discretization: " << planning_config.discretization);
+
 
     //////////////
     // Planning //
@@ -747,11 +779,12 @@ int main(int argc, char* argv[])
         size_t pidx = 0;
         while (ros::ok()) {
             auto& point = res.trajectory.joint_trajectory.points[pidx];
-            auto markers = cc.getCollisionRobotVisualization(point.positions);
-            for (auto& m : markers.markers) {
-                m.ns = "path_animation";
-            }
-            SV_SHOW_INFO(markers);
+            // If using moveit_collision_checker we cant use the following at the moment
+//            auto markers = cc.getCollisionRobotVisualization(point.positions);
+//            for (auto& m : markers.markers) {
+//                m.ns = "path_animation";
+//            }
+//            SV_SHOW_INFO(markers);
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
             pidx++;
             pidx %= res.trajectory.joint_trajectory.points.size();

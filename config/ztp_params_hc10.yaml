@@ -1,8 +1,8 @@
 start_region:
   min_limits:
-    [0.34, -0.5, 0.2, 0.0, 1.570796, -0.6] # Facing Down
+    [0.5, -0.3, 0.85, -1.570796, 0.0, -1.570796] # Facing Down: 1.570796
   max_limits:
-    [0.5, 0.5, 0.2, 0.0, 1.570796, 0.6]
+    [1.2, 0.3, 0.85, -1.570796, 0.0, -1.570796]
 
 grasping_regions:
   facing_forward:

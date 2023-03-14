@@ -13,7 +13,6 @@
 
     <rosparam command="load" file="$(find smpl_ztp)/config/ztp_params_hc10.yaml"/>
 
-
     <!-- 2.2 world state -->
     <param name="object_filename" value="$(find smpl_ztp)/env/tabletop.env"/>
 
@@ -23,14 +22,15 @@
 
     <node pkg="smpl_ztp" type="smpl_ztp_frame" name="smpl_ztp_frame"
           launch-prefix="$(arg launch-prefix)">
-        <param name="planning_frame" value="$(arg arm_id)base_link"/>
+        <param name="planning_frame" value="world"/> <!-- $(arg arm_id)base_link -->
         <rosparam unless="$(arg query)" param="query"> false </rosparam>
         <rosparam if="$(arg query)" param="query"> true </rosparam>
         <rosparam unless="$(arg random_query)" param="random_query"> false </rosparam>
         <rosparam if="$(arg random_query)" param="random_query"> true </rosparam>
         <!-- 1. robot model (for planning) -->
         <rosparam param="robot_model">
-            group_name: manipulator_$(arg arm_index)
+<!--            $(arg arm_index)-->
+            group_name: manipulator_1
             planning_joints:
                 $(arg arm_id)joint_1_s
                 $(arg arm_id)joint_2_l
@@ -41,11 +41,12 @@
             kinematics_frame:
                 $(arg arm_id)base_link
             chain_tip_link:
-                $(arg arm_id)tool0
+                arm_1tool0
+<!--                $(arg arm_id)tool0-->
         </rosparam>
 
         <!-- planner params -->
-        <rosparam command="load" file="$(find smpl_test)/config/hc10_arm.yaml"/>
+        <rosparam command="load" file="$(find smpl_test)/config/hc10_arm$(arg arm_index).yaml"/>
         <param name="planning/mprim_filename" value="$(find smpl_ztp)/config/hc10.mprim"/>
 
         <!-- 2. scene -->
