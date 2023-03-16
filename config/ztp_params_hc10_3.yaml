@@ -1,0 +1,20 @@
+start_region:
+  min_limits:
+    [0.5, -0.3, 0.85, -1.570796, 0.0, -1.570796] # Facing Down: 1.570796
+  max_limits:
+    [1.2, 0.3, 0.85, -1.570796, 0.0, -1.570796]
+
+regions:
+  pick_region:
+    min_limits:
+      [-0.3, 0.3, 0.85, -1.570796, 0.0, 0.0]
+    max_limits:
+      [0.3, 0.9, 0.85, -1.570796, 0.0, 0.0]
+  place_region:
+    min_limits:
+      [0.5, -0.3, 0.85, -1.570796, 0.0, -1.570796]
+    max_limits:
+      [1.2, 0.3, 0.85, -1.570796, 0.0, -1.570796]
+
+# preprocess_planner: ARAStar
+preprocess_planner: RRTConnect # ConfigDefault

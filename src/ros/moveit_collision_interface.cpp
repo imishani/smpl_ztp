@@ -207,16 +207,6 @@ bool smpl::collision::moveit_collision_interface::insertObject(const smpl::colli
     }
 
     // TODO: add object to moveit world using scene_builder
-//    std::string name = object->id;
-//    for (int i = 0; i < object->shapes.size(); i++) {
-//        auto type = object->shapes[i]->type;
-//        std::string type_ = to_cstring(type);
-//
-//        if (type_ == "Sphere"){
-//            std::vector<double> dimensions = object->shape_poses.;
-//        }
-//    }
-
     return true;
 }
 
@@ -235,12 +225,53 @@ void smpl::collision::moveit_collision_interface::removeAllObjects() {
 
 }
 
+bool smpl::collision::moveit_collision_interface::insertShapes(const smpl::collision::CollisionObject* object) {
+    return m_wcm->insertShapes(object);
+}
+
+bool smpl::collision::moveit_collision_interface::removeShapes(const smpl::collision::CollisionObject* object) {
+    return m_wcm->removeShapes(object);
+}
+
+bool smpl::collision::moveit_collision_interface::moveShapes(const smpl::collision::CollisionObject *object) {
+    return m_wcm->moveShapes(object);
+}
+
+bool smpl::collision::moveit_collision_interface::attachObject(const std::string& id,
+                                                               const std::vector<shapes::ShapeConstPtr>& shapes,
+                                                               const Isometry3dVector& transforms,
+                                                               const std::string& link_name){
+    move_group_->attachObject(id, link_name);
+}
+
+bool smpl::collision::moveit_collision_interface::detachObject(const std::string& id){
+    move_group_->detachObject(id);
+}
+
 smpl::Extension *smpl::collision::moveit_collision_interface::getExtension(size_t class_code) {
     if (class_code == GetClassCode<CollisionChecker>()) {
         return this;
     }
     return nullptr;
 }
+
+bool smpl::collision::moveit_collision_interface::setJointPosition(const std::string &joint_name, double position) {
+    return move_group_->setJointValueTarget(joint_name, position);
+}
+
+bool smpl::collision::moveit_collision_interface::execute() {
+    moveit::planning_interface::MoveGroupInterface::Plan plan;
+    if (!move_group_->plan(plan)) {
+        ROS_ERROR("Failed to plan");
+        return false;
+    }
+    if (!move_group_->execute(plan)) {
+        ROS_ERROR("Failed to execute");
+        return false;
+    }
+    return true;
+}
+
 
 
 

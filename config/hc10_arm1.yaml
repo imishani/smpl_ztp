@@ -1,0 +1,16 @@
+planning:
+  discretization:
+    arm_1joint_1_s    0.017453292519943295
+    arm_1joint_2_l    0.017453292519943295
+    arm_1joint_3_u    0.017453292519943295
+    arm_1joint_4_r    0.017453292519943295
+    arm_1joint_5_b    0.017453292519943295
+    arm_1joint_6_t    0.017453292519943295
+  use_xyz_snap_mprim: false
+  use_rpy_snap_mprim: false
+  use_xyzrpy_snap_mprim: true
+  use_short_dist_mprims: true
+  xyz_snap_dist_thresh: 0.2
+  rpy_snap_dist_thresh: 0.0
+  xyzrpy_snap_dist_thresh: 0.0
+  short_dist_mprims_thresh: 0.4

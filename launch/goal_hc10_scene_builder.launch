@@ -2,22 +2,31 @@
     <arg name="arm_index" default="1"/>
     <arg name="debug" default="false"/>
     <arg name="query" default="true"/>
-    <arg name="random_query" default="true"/>
+    <arg name="random_query" default="false"/>
     <arg name="arm_id" default="arm_$(arg arm_index)"/>
+
+    <arg name="node_start_delay" default="1.0" />
+
     <!--    If running the robot already, then there is no need to load the URDF again.. else, uncomment the line:-->
     <!--    <param name="robot_description" command="$(find xacro)/xacro '$(find ur_description)/urdf/ur10_robotiq85_gripper.xacro'"/>-->
 
     <arg unless="$(arg debug)" name="launch-prefix" value=""/>
     <arg     if="$(arg debug)" name="launch-prefix" value="xterm -e gdb --args"/> <!--    gdb ex -args -->
-    
-    <rosparam command="load" file="$(find smpl_ztp)/config/ztp_params_hc10.yaml"/>
+
+    <!--  Run scene_builder_node  -->
+<!--    <node pkg="scene_builder" type="scene_builder_node" name="scene_builder_node"/>-->
+    <!--    Delay by 1 sec:-->
+<!--    <node name="listener" pkg="roscpp_tutorials" type="listener" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' " />-->
+    <!--  Now you can run..  -->
+    <node pkg="scene_builder" type="scene_builder_frame" name="scene_builder_frame"/>
+
+    <rosparam command="load" file="$(find smpl_ztp)/config/ztp_params_hc10_$(arg arm_index).yaml"/>
 
     <!-- 2.2 world state -->
-    <param name="object_filename" value="$(find smpl_ztp)/env/tabletop.env"/>
+<!--    <param name="object_filename" value="$(find smpl_ztp)/env/tabletop.env"/>-->
 
     <!-- collision checking -->
-    <rosparam command="load" file="$(find sbpl_collision_checking_test)/config/collision_model_hc10.yaml"/>
-
+<!--    <rosparam command="load" file="$(find sbpl_collision_checking_test)/config/collision_model_hc10.yaml"/>-->
 
     <node pkg="smpl_ztp" type="smpl_ztp_frame" name="smpl_ztp_frame"
           launch-prefix="$(arg launch-prefix)">
@@ -28,7 +37,7 @@
         <rosparam if="$(arg random_query)" param="random_query"> true </rosparam>
         <!-- 1. robot model (for planning) -->
         <rosparam param="robot_model">
-<!--            $(arg arm_index)-->
+            <!--            $(arg arm_index)-->
             group_name: manipulator_1
             planning_joints:
                 $(arg arm_id)joint_1_s
@@ -41,20 +50,21 @@
                 $(arg arm_id)base_link
             chain_tip_link:
                 arm_1tool0
-<!--                $(arg arm_id)tool0-->
+            <!--                $(arg arm_id)tool0-->
         </rosparam>
 
         <!-- planner params -->
-        <rosparam command="load" file="$(find smpl_test)/config/hc10_arm$(arg arm_index).yaml"/>
+        <rosparam command="load" file="$(find smpl_ztp)/config/hc10_arm$(arg arm_index).yaml"/>
         <param name="planning/mprim_filename" value="$(find smpl_ztp)/config/hc10.mprim"/>
 
         <!-- 2. scene -->
         <!-- 2.1 robot state -->
-        <rosparam command="load" file="$(find smpl_test)/experiments/hc10_goal.yaml"/>
+        <rosparam command="load" file="$(find smpl_ztp)/experiments/hc10_goal$(arg arm_index).yaml"/>
 
         <!-- 3. scenario -->
 
     </node>
+
 
 </launch>
 

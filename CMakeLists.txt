@@ -93,7 +93,7 @@ add_executable(call_planner_ztp src/call_planner.cpp
                                 )    # src/ros/planner_interface.cpp
 
 add_executable(${PROJECT_NAME}_frame src/frame_planner.cpp
-        src/ros/planner_interface.cpp src/collision_space_scene.cpp src/ros/moveit_collision_interface.cpp)
+        src/ros/planner_interface.cpp src/collision_space_scene_moveit.cpp src/ros/moveit_collision_interface.cpp)
 
 target_compile_options(smpl_ztp PUBLIC -std=c++11)
 

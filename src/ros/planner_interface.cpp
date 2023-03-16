@@ -492,6 +492,8 @@ bool PlannerInterface::solveZero(
         return true;
     }
 
+    // TODO: Check about these factories
+    /// @{
     // make spaces
     auto psait = m_space_factories.find("manip");
     auto manip_space = psait->second(m_robot, m_checker, m_params);
@@ -533,6 +535,7 @@ bool PlannerInterface::solveZero(
         ROS_ERROR("Could not insert heuristic");
         return false;
     }
+    /// @} end of TODO
     
     // make planners
     auto pait = m_planner_factories.find("arastar");
@@ -604,6 +607,8 @@ bool PlannerInterface::solveZero(
         goal.ws_state[0] = goal.pose.translation()[0];
         goal.ws_state[1] = goal.pose.translation()[1];
         goal.ws_state[2] = goal.pose.translation()[2];
+        // Transfrom quaternion to roll pitch yaw
+        get_euler_zyx(goal.pose.rotation(), goal.ws_state[5], goal.ws_state[4], goal.ws_state[3]);
 //        while (!task_space_->SampleRobotStateOrientation(goal.angles, goal.ws_state));
         m_zero_planner->setStartAndGoal(initial_positions, goal);
         auto now = clock::now();
@@ -709,7 +714,11 @@ bool PlannerInterface::solveZero(
         ROS_INFO("Worst planning time: %f", worst_time);
         ROS_INFO("Best planning time: %f", best_time);
     }
+    // TODO: check these things. Something here crashes
     bfs_heuristic.release();    //avoid crash
+    wd_heuristic.release();     //avoid crash
+    task_space.release();   //avoid crash
+    manip_space.release();  //avoid crash
 
     return true;
 }

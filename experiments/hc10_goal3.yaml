@@ -1,0 +1,34 @@
+arm: "manipulator_3"
+
+initial_configuration:
+  joint_state:
+    - { name: arm_1joint_1_s,       position: 0.0 }
+    - { name: arm_1joint_2_l,   position: -0.785349 }
+    - { name: arm_1joint_3_u,  position: 0.785349 } # 0.0
+    - { name: arm_1joint_4_r, position: -1.5794 }
+    - { name: arm_1joint_5_b,     position: 0.0 }
+    - { name: arm_1joint_6_t,   position: 0.0 } # 0.0s
+
+pick: true
+
+grasp_object:
+  name: "part_c1_3"
+  relative_pose:  # From robot tool0 to object
+    position:
+      x: 0.0
+      y: 0.0
+      z: 0.2
+    orientation:       # 180 degree rotation about the x-axis
+      x: 1.0
+      y: 0.0
+      z: 0.0
+      w: 0.0
+
+goal:
+  x: 0.8
+  y: 0.0
+  z: 0.85
+  roll: -1.570796
+  pitch: 0.0 #1.570796
+  yaw: -1.570796
+

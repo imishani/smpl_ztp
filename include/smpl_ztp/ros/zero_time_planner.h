@@ -88,7 +88,7 @@ public:
 
     /// @brief Takes the goal position (x, y, z) and iterate over all grasp options (preprocessed files). When finds a
     /// feasible solution, it returns the path.
-    void GraspQuery(std::vector<RobotState>& path, std::string grasp_dir = "/home/itamar/work/code/ros/assembly_ws/src/smpl_ztp/src/ros/data");
+    void GraspQuery(std::vector<RobotState>& path, std::string grasp_dir = "/home/itamar/work/code/ros/assembly_ws/src/smpl_ztp/src/data");
 
     void getLimits();
 
@@ -123,9 +123,12 @@ private:
     std::unique_ptr<moveit::planning_interface::MoveGroupInterface> m_group;
     moveit::planning_interface::PlanningSceneInterface m_planning_scene_interface;
 
-    void WriteRegions(std::string path = "/home/itamar/work/code/ros/assembly_ws/src/smpl_ztp/src/ros/data/myfile3.dat");
+    std::string read_write_path;
+    std::string arm_name;
 
-    void ReadRegions(std::string path = "/home/itamar/work/code/ros/assembly_ws/src/smpl_ztp/src/ros/data/myfile2.dat");
+    void WriteRegions(std::string path="");
+
+    void ReadRegions(std::string path="");
 
 };
 

@@ -97,8 +97,19 @@ bool WorkspaceLatticeZero::init(
 
 bool WorkspaceLatticeZero::readGoalRegion()
 {
+    std::string region_type;
+    ros::NodeHandle m_pnh("~");
+    bool pick;
+    m_pnh.param("pick", pick, false);
+    if (pick){
+        region_type = "pick";
+    }
+    else{
+        region_type = "place";
+    }
+
     XmlRpc::XmlRpcValue xlist;
-    if (!m_nh.getParam("start_region/min_limits", xlist)) {
+    if (!m_nh.getParam("regions/" + region_type + "_region/min_limits", xlist)) {
         ROS_WARN("Could not find start region min limits");
         return false;
     }
@@ -112,7 +123,7 @@ bool WorkspaceLatticeZero::readGoalRegion()
         m_min_ws_limits.push_back(xlist[i]);
     }
 
-    if (!m_nh.getParam("start_region/max_limits", xlist)) {
+    if (!m_nh.getParam("regions/" + region_type + "_region/max_limits", xlist)) {
         ROS_WARN("Could not find start region max limits");
         return false;
     }
@@ -578,6 +589,7 @@ int WorkspaceLatticeZero::FindRegionContainingState_WS(const WorkspaceState& ws_
             dsum = h->GetFromToHeuristic(query_state_id, attractor_state_id);
         }
         else {
+            // TODO: Something here is wrong. Check if these are the same units
             const RobotState s = extractState(query_state_id);
             const RobotState t = extractState(attractor_state_id);
             ROS_INFO_STREAM("s slicing: " << RobotState(s.begin(), s.begin()+3));
@@ -590,6 +602,10 @@ int WorkspaceLatticeZero::FindRegionContainingState_WS(const WorkspaceState& ws_
         }
         SMPL_DEBUG_STREAM_NAMED("graph.expands", "    query state:     " << ws_state);
         SMPL_DEBUG_STREAM_NAMED("graph.expands", "    attractor state: " << r.state);
+//        SMPL_INFO_STREAM_NAMED("graph.expands", "    query state:     " << ws_state);
+//        SMPL_INFO_STREAM_NAMED("graph.expands", "    attractor state: " << r.state);
+//        SMPL_INFO_STREAM_NAMED("graph.expands", "    region radius: " << r.radius);
+//        SMPL_INFO_STREAM_NAMED("graph.expands", "    dsum: " << dsum);
 
         if (dsum < r.radius || dsum == 0) {
             // printf("dsum %d radius %u id1 %d id2 %d\n", dsum, r.radius, query_state_id, attractor_state_id);

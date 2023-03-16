@@ -58,7 +58,7 @@
 #include <smpl_ztp/planner/moveit_robot_model.h>
 #include <smpl_ztp/ros/planner_interface_ztp.h>
 #include <visualization_msgs/MarkerArray.h>
-#include "collision_space_scene.h"
+#include "collision_space_scene_moveit.hpp"
 #include "pr2_allowed_collision_pairs.h"
 #include <smpl/console/console.h>
 #include <smpl_ztp/ros/moveit_collision_interface.hpp>
@@ -209,6 +209,19 @@ auto GetCollisionObjects(
     }
 
     return GetCollisionCubes(objects, object_ids, frame_id);
+}
+
+/// \brief Get the collision objects from the planning scene
+/// \param planning_scene_interface
+/// \return a map of collision objects (key is the object id)
+auto GetCollisionObjects(moveit::planning_interface::PlanningSceneInterface& planning_scene_interface)
+-> std::vector<moveit_msgs::CollisionObject>{
+    auto collision_objects = planning_scene_interface.getObjects();
+    std::vector<moveit_msgs::CollisionObject> objs;
+    for (auto& obj : collision_objects) {
+        objs.push_back(obj.second);
+    }
+    return objs;
 }
 
 bool ReadInitialConfiguration(
@@ -455,15 +468,54 @@ void SetJoints(moveit_msgs::RobotState &state,
     }
 }
 
+void convertFromRelativePose(const geometry_msgs::Pose &pose,
+                             const geometry_msgs::Pose &reference,
+                             std::vector<double> &result)
+{
+    tf::Transform tf_pose;
+    tf::poseMsgToTF(pose, tf_pose);
+    // Print rf_pose
+    tf::Quaternion q_pose(tf_pose.getRotation());
+    tf::Vector3 v_pose(tf_pose.getOrigin());
+    SMPL_INFO("Pose: %f %f %f %f %f %f %f", v_pose.getX(), v_pose.getY(), v_pose.getZ(), q_pose.getX(), q_pose.getY(), q_pose.getZ(), q_pose.getW());
+
+    tf::Transform tf_reference;
+    tf::poseMsgToTF(reference, tf_reference);
+    // Print rf_reference
+    tf::Quaternion q_reference(tf_reference.getRotation());
+    tf::Vector3 v_reference(tf_reference.getOrigin());
+    SMPL_INFO("Reference: %f %f %f %f %f %f %f", v_reference.getX(), v_reference.getY(), v_reference.getZ(), q_reference.getX(), q_reference.getY(), q_reference.getZ(), q_reference.getW());
+
+
+    tf::Transform tf_result = tf_reference * tf_pose;
+    // Print rf_result
+    tf::Quaternion q_result(tf_result.getRotation());
+    tf::Vector3 v_result(tf_result.getOrigin());
+    SMPL_INFO("Result: %f %f %f %f %f %f %f", v_result.getX(), v_result.getY(), v_result.getZ(), q_result.getX(), q_result.getY(), q_result.getZ(), q_result.getW());
+
+    geometry_msgs::Pose result_gp;
+    tf::poseTFToMsg(tf_result, result_gp);
+
+    result.resize(6);
+    result[0] = result_gp.position.x;
+    result[1] = result_gp.position.y;
+    result[2] = result_gp.position.z;
+    // Convert from quaternion to rpy
+    tf::Quaternion q(result_gp.orientation.x, result_gp.orientation.y, result_gp.orientation.z, result_gp.orientation.w);
+    tf::Matrix3x3 m(q);
+
+    m.getRPY(result[3], result[4], result[5]);
+}
+
 int main(int argc, char* argv[])
 {
     ros::init(argc, argv, "frame_ztp");
     ros::NodeHandle nh;
     ros::NodeHandle ph("~");
 
-    if (ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug)) {
-        ros::console::notifyLoggerLevelsChanged();
-    }
+//    if (ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug)) {
+//        ros::console::notifyLoggerLevelsChanged();
+//    }
 
     ROS_INFO("Initialize visualizer");
     smpl::VisualizerROS visualizer(nh, 100);
@@ -506,7 +558,15 @@ int main(int argc, char* argv[])
         ROS_ERROR("Robot model is null");
         return 1;
     }
-    auto rm = SetupMoveItRobotModel(urdf, robot_config, robot_model);
+
+    // Read arm name from parameter server
+    std::string arm_name;
+    if (!ph.getParam("arm", arm_name)) {
+        ROS_ERROR("Failed to retrieve param 'arm' from the param server");
+        return 1;
+    }
+
+    auto rm = SetupMoveItRobotModel(urdf, robot_config, robot_model, arm_name);
 
     ////////////////////
     // Occupancy Grid //
@@ -551,109 +611,39 @@ int main(int argc, char* argv[])
     ///////////////////////
     // Collision Checker //
     ///////////////////////
-//    ROS_INFO("Create collision checker");
-//    // This whole manage storage for all the scene objects and must outlive
-//    // its associated CollisionSpace instance.
-//    CollisionSpaceScene scene;
-//
-//    smpl::collision::CollisionModelConfig cc_conf;
-//    if (!smpl::collision::CollisionModelConfig::Load(ph, cc_conf)) { //TODO: change it to read from robot_collision_model
-//        ROS_ERROR("Failed to load Collision Model Config");
-//        return 1;
-//    }
-//
-//    smpl::collision::CollisionSpace cc;
-//    if (!cc.init(&grid, urdf, cc_conf,
-//                 robot_config.group_name, robot_config.planning_joints)) {
-//        ROS_ERROR("Failed to initialize Collision Space");
-//        return 1;
-//    }
-//
-//    if (cc.robotCollisionModel()->name() == "pr2") {
-//        initAllowedCollisionsPR2(cc);
-//    }
-//
-//    /////////////////
-//    // Scene Setup //
-//    /////////////////
-//
-//    scene.SetCollisionSpace(&cc);
-//    std::string object_filename;
-//    ph.param<std::string>("/object_filename", object_filename, "");
-//    SMPL_INFO("Object Filename: %s", object_filename.c_str());
-//    // read in collision objects from file and add to the scene
-//    if (!object_filename.empty()) {
-//        auto objects = GetCollisionObjects(object_filename, planning_frame);
-//        for (auto& object : objects) {
-//            scene.ProcessCollisionObjectMsg(object);
-//        }
-//    }
-//
-//    // read in start state from file and update the scene
-//    moveit_msgs::RobotState start_state; // Why here we use moveit_msgs::RobotState and not smpl::RobotState?
-//    if (!ReadInitialConfiguration(ph, start_state)) {
-//        ROS_ERROR("Failed to get initial configuration.");
-//        return 1;
-//    }
-//
-//    // TODO: Do I need to update here the robot_model (rm)?
-////    moveit::core::RobotStatePtr robot_state_(new moveit::core::RobotState(robot_model));
-//////    robot_state->setVariablePosition(start_state);
-////    robot_state_->setJointGroupPositions(
-////            robot_model->getJointModelGroup(robot_config.group_name),
-////            start_state.joint_state.position);
-////    rm->updateReferenceState(*robot_state_);
-//
-//    SetJoints(start_state, cc); // Update collision to start state
-//
-//    if (!scene.SetRobotState(start_state)) {
-//        ROS_ERROR("Failed to set start state on Collision Space Scene");
-//        return 1;
-//    }
-//
-//    cc.setWorldToModelTransform(Eigen::Isometry3d::Identity());
-////    SV_SHOW_INFO(grid.getDistanceFieldVisualization(0.2));
-
-    // Defining moveit collision space
+    ROS_INFO("Create collision checker");
+    // This whole manage storage for all the scene objects and must outlive
+    // its associated CollisionSpace instance.
+    CollisionSpaceSceneMoveit scene;
 
     ROS_INFO("Create moveit collision checker");
     smpl::collision::moveit_collision_interface cc;
     cc.init(robot_config.group_name, &grid, planning_frame);
 
+    //    /////////////////
+//    // Scene Setup //
+//    /////////////////
+//
+    scene.SetCollisionSpace(&cc);
+    // read in collision objects from file and add to the scene
+    auto planning_scene_int = cc.getPlanningSceneInterface();
+    auto objects = GetCollisionObjects(planning_scene_int);
+
+    // Now, when we read the collision objects from the scene we dont need to process them
+    //@{
+    //    for (auto& object : objects) {
+    //      scene.ProcessCollisionObjectMsg(object);
+    //}
+    //@}
+
+    // read in collision objects from file and add to the scene. Need to be done using scene_builder
     // read in start state from file and update the scene
     ROS_INFO("Read start state from file and update the scene");
-    moveit_msgs::RobotState start_state; // Why here we use moveit_msgs::RobotState and not smpl::RobotState?
+    moveit_msgs::RobotState start_state;
     if (!ReadInitialConfiguration(ph, start_state)) {
         ROS_ERROR("Failed to get initial configuration.");
         return 1;
     }
-
-    // read in collision objects from file and add to the scene. Need to be done using scene_builder
-
-//    std::string object_filename;
-//    ph.param<std::string>("/object_filename", object_filename, "");
-//    SMPL_INFO("Object Filename: %s", object_filename.c_str());
-//    // read in collision objects from file and add to the scene
-//    if (!object_filename.empty()) {
-//        auto objects = GetCollisionObjects(object_filename, planning_frame);
-//        for (auto& object : objects) {
-//            scene.ProcessCollisionObjectMsg(object);
-//        }
-//    }
-
-#ifdef KDL
-    // The KDL Robot Model must be given the transform from the planning frame
-    // to the kinematics frame, which is assumed to not be a function of the
-    // planning joint variables.
-    geometry_msgs::Transform transform;
-    transform.translation.x = -0.05;
-    transform.translation.y = 0.0;
-    transform.translation.z = 0.959;
-    transform.rotation.w = 1.0;
-    KDL::Frame f;
-    tf::transformMsgToKDL(transform, f);
-    rm_kdl->setKinematicsToPlanningTransform(f, "what?");
-#endif
 
 //    SV_SHOW_INFO(cc.getCollisionRobotVisualization());
     SV_SHOW_INFO(cc.getCollisionWorldVisualization());
@@ -693,21 +683,67 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    ROS_INFO("Planner discretesation Parameters:");
-    ROS_INFO_STREAM("discretization: " << planning_config.discretization);
-
-
     //////////////
     // Planning //
     //////////////
-
+    // check if we need to pick (grasp)
+    bool pick;
+    ph.param("pick", pick, false);
     std::vector<double> goal(6, 0);
-    ph.param("goal/x", goal[0], 0.0);
-    ph.param("goal/y", goal[1], 0.0);
-    ph.param("goal/z", goal[2], 0.0);
-    ph.param("goal/roll", goal[3], 0.0);
-    ph.param("goal/pitch", goal[4], 0.0);
-    ph.param("goal/yaw", goal[5], 0.0);
+    if (pick){
+        ROS_INFO("Looking for a pick object..");
+        std::string object_name;
+        if (!ph.getParam("grasp_object/name", object_name)) {
+            ROS_ERROR("Failed to retrieve param 'object_name' from the param server");
+            return 1;
+        }
+        ROS_INFO("Object name: %s", object_name.c_str());
+
+        // Look for the object in the objects vector and get the pose
+        geometry_msgs::Pose object_pose;
+        for (auto& object : objects) {
+            if (object.id == object_name){
+                object_pose.position.x = object.pose.position.x;
+                object_pose.position.y = object.pose.position.y;
+                object_pose.position.z = object.pose.position.z;
+                object_pose.orientation.x = object.pose.orientation.x;
+                object_pose.orientation.y = object.pose.orientation.y;
+                object_pose.orientation.z = object.pose.orientation.z;
+                object_pose.orientation.w = object.pose.orientation.w;
+                break;
+            }
+        }
+        // Get the relative pose from param server
+        std::vector<double> rel_pose(7, 0);
+        ph.param("grasp_object/relative_pose/position/x", rel_pose[0], 0.0);
+        ph.param("grasp_object/relative_pose/position/y", rel_pose[1], 0.0);
+        ph.param("grasp_object/relative_pose/position/z", rel_pose[2], 0.0);
+        ph.param("grasp_object/relative_pose/orientation/x", rel_pose[3], 0.0);
+        ph.param("grasp_object/relative_pose/orientation/y", rel_pose[4], 0.0);
+        ph.param("grasp_object/relative_pose/orientation/z", rel_pose[5], 0.0);
+        ph.param("grasp_object/relative_pose/orientation/w", rel_pose[6], 0.0);
+        // Convert to geometry_msgs::Pose
+        geometry_msgs::Pose rel_pose_msg;
+        rel_pose_msg.position.x = rel_pose[0];
+        rel_pose_msg.position.y = rel_pose[1];
+        rel_pose_msg.position.z = rel_pose[2];
+        rel_pose_msg.orientation.x = rel_pose[3];
+        rel_pose_msg.orientation.y = rel_pose[4];
+        rel_pose_msg.orientation.z = rel_pose[5];
+        rel_pose_msg.orientation.w = rel_pose[6];
+
+        // get the object pose
+        convertFromRelativePose(rel_pose_msg, object_pose, goal);
+    }
+    else {
+        ph.param("goal/x", goal[0], 0.0);
+        ph.param("goal/y", goal[1], 0.0);
+        ph.param("goal/z", goal[2], 0.0);
+        ph.param("goal/roll", goal[3], 0.0);
+        ph.param("goal/pitch", goal[4], 0.0);
+        ph.param("goal/yaw", goal[5], 0.0);
+    }
+
 
     moveit_msgs::MotionPlanRequest req;
     moveit_msgs::MotionPlanResponse res;
@@ -715,17 +751,6 @@ int main(int argc, char* argv[])
     req.allowed_planning_time = 60.0;
     req.goal_constraints.resize(1);
     FillGoalConstraint(goal, planning_frame, req.goal_constraints[0]);
-
-#if 0
-    // fill goal state
-    moveit_msgs::RobotState goal_state;
-    if (!ReadGoalConfiguration(ph, goal_state)) {
-        ROS_ERROR("Failed to get goal configuration.");
-        return 0;
-    }
-
-    FillGoalJointConstraint(goal_state, req.goal_constraints[0]);
-#endif
 
     req.group_name = robot_config.group_name;
     req.max_acceleration_scaling_factor = 1.0;
@@ -777,18 +802,28 @@ int main(int argc, char* argv[])
         ROS_INFO("Animate path");
 
         size_t pidx = 0;
-        while (ros::ok()) {
-            auto& point = res.trajectory.joint_trajectory.points[pidx];
-            // If using moveit_collision_checker we cant use the following at the moment
-//            auto markers = cc.getCollisionRobotVisualization(point.positions);
-//            for (auto& m : markers.markers) {
-//                m.ns = "path_animation";
-//            }
-//            SV_SHOW_INFO(markers);
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
-            pidx++;
-            pidx %= res.trajectory.joint_trajectory.points.size();
-        }
+        // Print the trajectory
+//        ROS_INFO_STREAM(res.trajectory.joint_trajectory);
+        // Execute the trajectory
+        moveit::planning_interface::MoveGroupInterface move_group(robot_config.group_name);
+        moveit::planning_interface::MoveGroupInterface::Plan plan;
+        plan.trajectory_ = res.trajectory;
+        move_group.execute(plan);
+
+
+
+//        while (ros::ok()) {
+//            auto& point = res.trajectory.joint_trajectory.points[pidx];
+//            // If using moveit_collision_checker we cant use the following at the moment
+////            auto markers = cc.getCollisionRobotVisualization(point.positions);
+////            for (auto& m : markers.markers) {
+////                m.ns = "path_animation";
+////            }
+////            SV_SHOW_INFO(markers);
+//            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+//            pidx++;
+//            pidx %= res.trajectory.joint_trajectory.points.size();
+//        }
     }
 
     return 0;

@@ -28,6 +28,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 /// \author Fahad Islam
+/// \author Itamar Mishani
 
 // standard includes
 #include <cstdio>
@@ -38,6 +39,7 @@
 #include <eigen_conversions/eigen_msg.h>
 #include <leatherman/utils.h>
 #include <tf_conversions/tf_eigen.h>
+#include <ros/package.h>
 
 // project includes
 #include <smpl_ztp/ros/zero_time_planner.h>
@@ -171,6 +173,24 @@ ZeroTimePlanner::ZeroTimePlanner(
     if (!m_nh.getParam("preprocess_planner", m_pp_planner)) {
         ROS_ERROR("Could not find preprocessing planner name");
     }
+    ros::NodeHandle m_pnh("~");
+    // get arm name
+
+    if (!m_pnh.getParam("arm", arm_name)) {
+        ROS_ERROR("Could not find arm name");
+    }
+    // get pick param
+    std::string current_dir = ros::package::getPath("smpl_ztp");
+    bool m_pick;
+    m_pnh.param("pick", m_pick, false);
+    if (m_pick){
+        // get current directory
+        read_write_path = current_dir + "/src/data/" + arm_name + "_pick.dat";
+    }
+    else {
+        read_write_path = current_dir + "/src/data/" + arm_name + "_place.dat";
+    }
+
     if (m_regions.empty()) {
         ReadRegions();
         m_task_space->PassRegions(&m_regions, &m_iregions);
@@ -207,7 +227,7 @@ void ZeroTimePlanner::setStartAndGoal(
 
 void ZeroTimePlanner::InitMoveitOMPL()
 {
-    m_group.reset(new moveit::planning_interface::MoveGroupInterface("manipulator_1"));
+    m_group.reset(new moveit::planning_interface::MoveGroupInterface(arm_name));  // "manipulator_1"
     ROS_INFO("Planning path with OMPL");
 
     // Collision objects
@@ -240,12 +260,13 @@ bool ZeroTimePlanner::PlanPathFromStartToAttractorOMPL(const RobotState& attract
     // geometry_msgs::Pose target_pose;
     // tf::poseEigenToMsg(m_goal.pose, target_pose);
     // m_group->setPoseTarget(target_pose);
+
     robot_state::RobotState goal_state(*m_group->getCurrentState());
-    goal_state.setJointGroupPositions("manipulator_1", attractor);    // right_arm
+    goal_state.setJointGroupPositions(arm_name, attractor);    // "manipulator_1"
     m_group->setJointValueTarget(goal_state);
 
     robot_state::RobotState start_state(*m_group->getCurrentState());
-    start_state.setJointGroupPositions("manipulator_1", m_start_state);   // right_arm
+    start_state.setJointGroupPositions(arm_name, m_start_state);   // "manipulator_1"
     m_group->setStartState(start_state);
     ROS_INFO_STREAM(m_group->getName());
     // plan
@@ -362,13 +383,15 @@ bool ZeroTimePlanner::PlanPathFromStartToAttractorSMPL(const RobotState& attract
 void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
 {
     m_regions.clear();
+    ROS_INFO("Preprocessing");
     if (m_pp_planner != "ARAStar")
         InitMoveitOMPL();
 
     unsigned int radius_max_v = 1000;
     unsigned int radius_max_i = 1000;
+    ROS_INFO("Waiting for regions");
     m_task_space->PassRegions(&m_regions, &m_iregions);
-
+    ROS_INFO("Preprocessing with %s", m_pp_planner.c_str());
     // 1. SAMPLE ATTRACTOR
     int maximum_tries = 10000;
     WorkspaceState sampled_state;
@@ -687,7 +710,9 @@ void ZeroTimePlanner::GraspQuery(std::vector<RobotState> &path, std::string gras
         // Look for regions that contain the goal (position only)
         auto now = clock::now();
         ROS_INFO("Looking for region containing start state");
-        int reg_idx = m_task_space->FindRegionContainingState_WS(m_goal.ws_state, true);
+        // TODO: Make sure about the false here. Do I want to look for the closest region with or without heuristic?
+        // Why did I do this?
+        int reg_idx = m_task_space->FindRegionContainingState_WS(m_goal.ws_state, false);
         auto find_time = to_seconds(clock::now() - now);
         ROS_INFO("FIND TIME %f", find_time);
         if (reg_idx == -1) {
@@ -822,7 +847,9 @@ void ZeroTimePlanner::WriteRegions(std::string path)
     {
         return (a.radius > b.radius);
     });
-
+    if (path.empty()){
+        path = read_write_path;
+    }
 	ROS_INFO("Writing regions to file");
     boost::filesystem::path myFile = path; //boost::filesystem::current_path() /
     std::cout << myFile;
@@ -836,6 +863,9 @@ void ZeroTimePlanner::ReadRegions(std::string path)
 	ROS_INFO("Reading regions from file");
     // getchar();
     try {
+        if (path.empty()){
+            path = read_write_path;
+        }
         boost::filesystem::path myFile = path; // boost::filesystem::current_path() /
         boost::filesystem::ifstream ifs(myFile/*.native()*/);
         boost::archive::text_iarchive ta(ifs);
