@@ -63,6 +63,8 @@
 #include <smpl_ztp/ros/zero_time_planner.h>
 #include <smpl_ztp/graph/goal_contrant_ztp.hpp>
 
+
+
 SBPL_CLASS_FORWARD(SBPLPlanner);
 
 namespace smpl {
@@ -254,7 +256,7 @@ protected:
         const std::string& joint_state_frame,
         const std::string& multi_dof_joint_state_frame,
         moveit_msgs::RobotTrajectory& traj) const;
-    void profilePath(trajectory_msgs::JointTrajectory& traj) const;
+    void profilePath(trajectory_msgs::JointTrajectory& traj, bool use_moveit=false) const;
     void removeZeroDurationSegments(trajectory_msgs::JointTrajectory& traj) const;
 
     bool writePath(

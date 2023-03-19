@@ -155,6 +155,7 @@ public:
     auto getExtension(size_t class_code) -> smpl::Extension* override;
     ///@}
 
+
 private:
 
     moveit::core::RobotModelConstPtr m_robot_model;

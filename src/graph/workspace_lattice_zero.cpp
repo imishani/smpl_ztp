@@ -874,6 +874,7 @@ bool WorkspaceLatticeZero::extractPath(
     std::vector<RobotState>& path)
 {
     path.clear();
+    std::cout << "Ids: " << ids << std::endl;
 
     if (ids.empty()) {
         return true;
@@ -920,7 +921,6 @@ bool WorkspaceLatticeZero::extractPath(
             SMPL_ERROR_NAMED("graph", "cannot determine goal state successors during path extraction");
             return false;
         }
-
         if (curr_id == getGoalStateID()) {
             // TODO: variant of get succs that returns unique state ids
             WorkspaceLatticeState* prev_entry = getState(prev_id);
@@ -934,12 +934,14 @@ bool WorkspaceLatticeZero::extractPath(
                 const Action& action = actions[aidx];
 
                 const WorkspaceState& final_state = action.back();
-                ROS_INFO_STREAM("goal type: " << goal().type);
+                ROS_INFO_STREAM("Final state: " << final_state);
                 if (!isGoal(final_state)) {
+                    ROS_INFO("Not a goal state");
                     continue;
                 }
 
                 if (!checkAction(prev_entry->state, action)) {
+                    ROS_INFO("Action not valid");
                     continue;
                 }
 
@@ -952,13 +954,15 @@ bool WorkspaceLatticeZero::extractPath(
                 // shouldn't have created a new state, so no need to set the
                 // continuous state counterpart
                 assert(goal_state->state.size() == robot()->jointVariableCount());
-
                 best_cost = 30; // Hardcoded primitive value in GetSuccs
+                ROS_INFO_STREAM("Goal state found: " << goal_state->coord << "   " << goal_state->state);
+                ROS_INFO_STREAM("Goal from field: " << m_goal_entry->coord << "   " << m_goal_entry->state);
                 best_goal_entry = goal_state;
                 break;
             }
 
             if (!best_goal_entry) {
+                ROS_INFO_STREAM(best_goal_entry);
                 SMPL_ERROR_NAMED("graph", "failed to find valid goal successor during path extraction");
                 return false;
             }

@@ -48,6 +48,14 @@
 #include <sbpl/planners/mhaplanner.h>
 #include <trajectory_msgs/JointTrajectory.h>
 
+
+// ROS includes
+#include <moveit/robot_model_loader/robot_model_loader.h>
+#include <moveit/robot_trajectory/robot_trajectory.h>
+// trajectory_processing::IterativeParabolicTimeParameterization
+#include <moveit/trajectory_processing/iterative_time_parameterization.h>
+
+
 // project includes
 #include <smpl/angles.h>
 #include <smpl/post_processing.h>
@@ -646,7 +654,7 @@ bool PlannerInterface::solveZero(
             writePath(res.trajectory_start, res.trajectory);
         }
 
-        profilePath(res.trajectory.joint_trajectory);
+        profilePath(res.trajectory.joint_trajectory, true);
         //    removeZeroDurationSegments(traj);
 
         m_res = res; // record the last result
@@ -703,7 +711,7 @@ bool PlannerInterface::solveZero(
                 writePath(res.trajectory_start, res.trajectory);
             }
 
-            profilePath(res.trajectory.joint_trajectory);
+            profilePath(res.trajectory.joint_trajectory, true);
         //    removeZeroDurationSegments(traj);
 
             m_res = res; // record the last result
@@ -1518,41 +1526,94 @@ bool PlannerInterface::reinitPlanner(const std::string& planner_id)
     return true;
 }
 
-void PlannerInterface::profilePath(trajectory_msgs::JointTrajectory& traj) const
+void PlannerInterface::profilePath(trajectory_msgs::JointTrajectory& traj, bool use_moveit) const
 {
     if (traj.points.empty()) {
         return;
     }
-
-    auto& joint_names = traj.joint_names;
-
-    for (size_t i = 1; i < traj.points.size(); ++i) {
-        auto& prev_point = traj.points[i - 1];
-        auto& curr_point = traj.points[i];
-
-        // find the maximum time required for any joint to reach the next
-        // waypoint
-        double max_time = 0.0;
-        for (size_t jidx = 0; jidx < joint_names.size(); ++jidx) {
-            const double from_pos = prev_point.positions[jidx];
-            const double to_pos = curr_point.positions[jidx];
-            const double vel = m_robot->velLimit(jidx);
-            if (vel <= 0.0) {
-                continue;
-            }
-            double t = 0.0;
-            if (m_robot->isContinuous(jidx)) {
-                t = angles::shortest_angle_dist(from_pos, to_pos) / vel;
-            } else {
-                t = fabs(to_pos - from_pos) / vel;
-            }
-
-            max_time = std::max(max_time, t);
+    if(use_moveit){
+        // Read arm from param server
+        std::string arm;
+        if (!ros::param::get("~arm", arm)) {
+            ROS_ERROR("Failed to read arm from param server");
+            return;
         }
+        ROS_INFO_STREAM("Arm: " << arm);
+        robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
+        auto moveit_robot_model = robot_model_loader.getModel();
+        auto moveit_robot_state = std::make_shared<robot_state::RobotState>(moveit_robot_model);
+        auto moveit_trajectory = std::make_shared<robot_trajectory::RobotTrajectory>(moveit_robot_model, arm);
+        moveit_trajectory->setRobotTrajectoryMsg(*moveit_robot_state, traj);
+        trajectory_processing::IterativeParabolicTimeParameterization time_param;
+        bool success = time_param.computeTimeStamps(*moveit_trajectory, 0.5, 0.5);
+        moveit_msgs::RobotTrajectory moveit_traj;
+        moveit_trajectory->getRobotTrajectoryMsg(moveit_traj);
+        traj = moveit_traj.joint_trajectory;
+        return;
+    }
+    else{
+        auto& joint_names = traj.joint_names;
 
-        curr_point.time_from_start = prev_point.time_from_start + ros::Duration(max_time);
+        for (size_t i = 1; i < traj.points.size(); ++i) {
+            auto& prev_point = traj.points[i - 1];
+            auto& curr_point = traj.points[i];
+
+            // find the maximum time required for any joint to reach the next
+            // waypoint
+            double max_time = 0.0;
+            for (size_t jidx = 0; jidx < joint_names.size(); ++jidx) {
+                auto from_pos = prev_point.positions[jidx];
+                auto to_pos = curr_point.positions[jidx];
+                auto vel = m_robot->velLimit(jidx);
+                if (vel <= 0.0) {
+                    continue;
+                }
+                auto t = 0.0;
+                if (m_robot->isContinuous(jidx)) {
+                    t = angles::shortest_angle_dist(from_pos, to_pos) / vel;
+                } else {
+                    t = fabs(to_pos - from_pos) / vel;
+                }
+
+                max_time = std::max(max_time, t);
+                max_time *= 1.5;
+            }
+
+            curr_point.time_from_start = prev_point.time_from_start + ros::Duration(max_time);
+        }
     }
 }
+
+
+//    auto& joint_names = traj.joint_names;
+//
+//    for (size_t i = 1; i < traj.points.size(); ++i) {
+//        auto& prev_point = traj.points[i - 1];
+//        auto& curr_point = traj.points[i];
+//
+//        // find the maximum time required for any joint to reach the next
+//        // waypoint
+//        double max_time = 0.0;
+//        for (size_t jidx = 0; jidx < joint_names.size(); ++jidx) {
+//            const double from_pos = prev_point.positions[jidx];
+//            const double to_pos = curr_point.positions[jidx];
+//            const double vel = m_robot->velLimit(jidx);
+//            if (vel <= 0.0) {
+//                continue;
+//            }
+//            double t = 0.0;
+//            if (m_robot->isContinuous(jidx)) {
+//                t = angles::shortest_angle_dist(from_pos, to_pos) / vel;
+//            } else {
+//                t = fabs(to_pos - from_pos) / vel;
+//            }
+//
+//            max_time = std::max(max_time, t);
+//        }
+//
+//        curr_point.time_from_start = prev_point.time_from_start + ros::Duration(max_time);
+//    }
+//}
 
 void PlannerInterface::removeZeroDurationSegments(
     trajectory_msgs::JointTrajectory& traj) const

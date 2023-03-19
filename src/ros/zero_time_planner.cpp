@@ -719,39 +719,32 @@ void ZeroTimePlanner::GraspQuery(std::vector<RobotState> &path, std::string gras
             ROS_INFO_STREAM("Query start state not covered in file: " << grasp_name);
             continue;
         }
-        m_goal.ws_state[3] = m_regions[reg_idx].state[3];
-        m_goal.ws_state[4] = m_regions[reg_idx].state[4];
-        m_goal.ws_state[5] = m_regions[reg_idx].state[5];
+//        m_goal.ws_state[3] = m_regions[reg_idx].state[3];
+//        m_goal.ws_state[4] = m_regions[reg_idx].state[4];
+//        m_goal.ws_state[5] = m_regions[reg_idx].state[5];
 
         // Normalize:
         WorkspaceCoord ws_coord;
         m_task_space->stateWorkspaceToCoord(m_goal.ws_state, ws_coord);
         m_task_space->stateCoordToWorkspace(ws_coord, m_goal.ws_state);
+        std::cout << "Goal state: " << m_goal.ws_state[0] << " " << m_goal.ws_state[1] << " " << m_goal.ws_state[2] << " " << m_goal.ws_state[3] << " " << m_goal.ws_state[4] << " " << m_goal.ws_state[5] << std::endl;
+        std::cout << "Region state: " << m_regions[reg_idx].state[0] << " " << m_regions[reg_idx].state[1] << " " << m_regions[reg_idx].state[2] << " " << m_regions[reg_idx].state[3] << " " << m_regions[reg_idx].state[4] << " " << m_regions[reg_idx].state[5] << std::endl;
 
         if (!m_task_space->stateWorkspaceToRobot(m_goal.ws_state, m_goal.angles)) {
             ROS_INFO_STREAM("Failed to find IK solution for goal. (File: " << grasp_name << ")");
             continue;
         }
 
+        ROS_INFO_STREAM("Angles for goal: " << smpl::to_degrees(m_goal.angles[0]) << " " << smpl::to_degrees(m_goal.angles[1]) << " " <<
+        smpl::to_degrees(m_goal.angles[2]) << " " << smpl::to_degrees(m_goal.angles[3]) << " " << smpl::to_degrees(m_goal.angles[4]) << " " << smpl::to_degrees(m_goal.angles[5]));
         RobotState start_state;
         start_state = m_goal.angles;
 
-        m_task_space->setStart(start_state);
-        const int start_id = m_task_space->getStartStateID();
-        if (start_id == -1) {
-            ROS_ERROR("No start state has been set in workspace lattice");
-            return;
-        }
-
-        if (m_planner_zero->set_start(start_id) == 0) {
-            ROS_ERROR("Failed to set start state");
-            return;
-        }
-
         GoalConstraint goal;
         goal.type = GoalType::JOINT_STATE_GOAL;
-    //    WorkspaceState goal_workspace_state = m_regions[reg_idx].state;
-    //    m_task_space->stateWorkspaceToRobot(goal_workspace_state, goal.angles);
+//        goal.type = GoalType::XYZ_RPY_GOAL;
+        //    WorkspaceState goal_workspace_state = m_regions[reg_idx].state;
+        //    m_task_space->stateWorkspaceToRobot(goal_workspace_state, goal.angles);
         goal.angles = m_regions[reg_idx].state;
         m_task_space->setGoal(goal);
 
@@ -766,6 +759,19 @@ void ZeroTimePlanner::GraspQuery(std::vector<RobotState> &path, std::string gras
             ROS_ERROR("Failed to set planner goal state");
             return;
         }
+
+        m_task_space->setStart(start_state);
+        const int start_id = m_task_space->getStartStateID();
+        if (start_id == -1) {
+            ROS_ERROR("No start state has been set in workspace lattice");
+            return;
+        }
+
+        if (m_planner_zero->set_start(start_id) == 0) {
+            ROS_ERROR("Failed to set start state");
+            return;
+        }
+
 
         printf("start id %d goal id %d\n", start_id, goal_id);
         // getchar();

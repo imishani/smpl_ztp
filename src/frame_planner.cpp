@@ -36,6 +36,7 @@
 #include <cstdlib>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 // system includes
@@ -63,6 +64,103 @@
 #include <smpl/console/console.h>
 #include <smpl_ztp/ros/moveit_collision_interface.hpp>
 
+#include <moveit_visual_tools/moveit_visual_tools.h>
+#include <moveit/planning_scene_monitor/planning_scene_monitor.h>
+
+
+class PickPlaceGripperMachine
+{
+public:
+    // Constructor
+    PickPlaceGripperMachine() {
+        planning_group_ = "gripper_1";
+        ROS_INFO_STREAM("Planning group: " << planning_group_.back());
+        move_group_ = std::make_shared<moveit::planning_interface::MoveGroupInterface>(planning_group_);
+    }
+
+    PickPlaceGripperMachine(std::string& planning_group){
+        planning_group_ = std::move(planning_group);
+        ROS_INFO_STREAM("Planning group: " << planning_group_.back());
+        move_group_ = std::make_shared<moveit::planning_interface::MoveGroupInterface>(planning_group_);
+    }
+
+    // Destructor
+    ~PickPlaceGripperMachine() = default;
+
+    bool openGripper() {
+        move_group_->setNamedTarget(&"open_" [ planning_group_.back()]);
+        moveit::planning_interface::MoveGroupInterface::Plan my_plan;
+        bool success = (move_group_->plan(my_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
+        if (success) {
+            move_group_->execute(my_plan);
+        }
+        return success;
+    }
+
+    bool closeGripper() {
+        move_group_->setNamedTarget(&"close_" [ planning_group_.back()]);
+        moveit::planning_interface::MoveGroupInterface::Plan my_plan;
+        bool success = (move_group_->plan(my_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
+        if (success) {
+            move_group_->execute(my_plan);
+        }
+        return success;
+    }
+
+    void pick(geometry_msgs::Pose& pre_grasp,
+              geometry_msgs::Pose& grasp,
+              std::string& frame_id,
+              std::string& object_id){
+        std::vector<moveit_msgs::Grasp> grasps;
+        grasps.resize(1);
+        grasps[0].grasp_pose.pose = grasp;
+        grasps[0].grasp_pose.header.frame_id = frame_id;
+
+        grasps[0].pre_grasp_approach.direction.header.frame_id = frame_id;
+        grasps[0].pre_grasp_approach.min_distance = 0.095;
+        grasps[0].pre_grasp_approach.desired_distance = 0.115;
+        // Normalize grasp - pre_grasp vector
+        auto norm = sqrt(pow(grasp.position.x - pre_grasp.position.x, 2) +
+                         pow(grasp.position.y - pre_grasp.position.y, 2) +
+                         pow(grasp.position.z - pre_grasp.position.z, 2));
+        grasps[0].pre_grasp_approach.direction.vector.x = (grasp.position.x - pre_grasp.position.x)/norm;
+        grasps[0].pre_grasp_approach.direction.vector.y = (grasp.position.y - pre_grasp.position.y)/norm;
+        grasps[0].pre_grasp_approach.direction.vector.z = (grasp.position.z - pre_grasp.position.z)/norm;
+
+        grasps[0].post_grasp_retreat.direction.header.frame_id = frame_id;
+        // oposite direction
+        grasps[0].post_grasp_retreat.direction.vector.x = -grasps[0].pre_grasp_approach.direction.vector.x;
+        grasps[0].post_grasp_retreat.direction.vector.y = -grasps[0].pre_grasp_approach.direction.vector.y;
+        grasps[0].post_grasp_retreat.direction.vector.z = -grasps[0].pre_grasp_approach.direction.vector.z;
+        grasps[0].post_grasp_retreat.min_distance = 0.095;
+        grasps[0].post_grasp_retreat.desired_distance = 0.115;
+
+        // set pre-grasp posture based on Open
+        grasps[0].pre_grasp_posture.joint_names.resize(1);
+        std::string joint_name = std::string("arm_") + planning_group_.back() + std::string("robotiq_85_left_knuckle_joint");
+        grasps[0].pre_grasp_posture.joint_names[0] = joint_name;
+        grasps[0].pre_grasp_posture.points.resize(1);
+        grasps[0].pre_grasp_posture.points[0].positions.resize(1);
+        grasps[0].pre_grasp_posture.points[0].positions[0] = move_group_->getNamedTargetValues(&"open_" [ planning_group_.back()])[joint_name];
+        grasps[0].pre_grasp_posture.points[0].time_from_start = ros::Duration(0.5);
+
+        // set grasp posture based on Close
+        grasps[0].grasp_posture.joint_names.resize(1);
+        grasps[0].grasp_posture.joint_names[0] = joint_name;
+        grasps[0].grasp_posture.points.resize(1);
+        grasps[0].grasp_posture.points[0].positions.resize(1);
+        grasps[0].grasp_posture.points[0].positions[0] = move_group_->getNamedTargetValues(&"close_" [ planning_group_.back()])[joint_name];
+        grasps[0].grasp_posture.points[0].time_from_start = ros::Duration(0.5);
+
+//        move_group_.setSupportSurfaceName("table");
+        move_group_->pick(object_id, grasps);
+    }
+
+private:
+    std::string planning_group_;
+    // define a move group field
+    std::shared_ptr<moveit::planning_interface::MoveGroupInterface> move_group_;
+};
 
 void FillGoalConstraint(
         const std::vector<double>& pose,
@@ -645,6 +743,7 @@ int main(int argc, char* argv[])
         return 1;
     }
 
+
 //    SV_SHOW_INFO(cc.getCollisionRobotVisualization());
     SV_SHOW_INFO(cc.getCollisionWorldVisualization());
     SV_SHOW_INFO(cc.getOccupiedVoxelsVisualization());
@@ -690,9 +789,10 @@ int main(int argc, char* argv[])
     bool pick;
     ph.param("pick", pick, false);
     std::vector<double> goal(6, 0);
+    std::string object_name;
+    geometry_msgs::Pose object_pose;
     if (pick){
         ROS_INFO("Looking for a pick object..");
-        std::string object_name;
         if (!ph.getParam("grasp_object/name", object_name)) {
             ROS_ERROR("Failed to retrieve param 'object_name' from the param server");
             return 1;
@@ -700,7 +800,6 @@ int main(int argc, char* argv[])
         ROS_INFO("Object name: %s", object_name.c_str());
 
         // Look for the object in the objects vector and get the pose
-        geometry_msgs::Pose object_pose;
         for (auto& object : objects) {
             if (object.id == object_name){
                 object_pose.position.x = object.pose.position.x;
@@ -799,31 +898,53 @@ int main(int argc, char* argv[])
 #endif
 
     if (query) {
-        ROS_INFO("Animate path");
+        ROS_INFO("Execute path");
+        std::string gripper_group;
+        ph.param("gripper", gripper_group, std::string("gripper_1"));
+        PickPlaceGripperMachine pick_place_gripper_machine {gripper_group};
 
-        size_t pidx = 0;
-        // Print the trajectory
-//        ROS_INFO_STREAM(res.trajectory.joint_trajectory);
         // Execute the trajectory
         moveit::planning_interface::MoveGroupInterface move_group(robot_config.group_name);
         moveit::planning_interface::MoveGroupInterface::Plan plan;
         plan.trajectory_ = res.trajectory;
+        ROS_INFO_STREAM(res.planning_time);
+        ROS_INFO_STREAM(res.trajectory.joint_trajectory.points);
+        // move the robot
+
         move_group.execute(plan);
+        // move the gripper
+        // pre grasp from trajectory (last point)
+        auto& point = res.trajectory.joint_trajectory.points.back();
+        // cast to geometry_msgs::Pose
+        geometry_msgs::Pose pose;
+        pose.position.x = point.positions[0];
+        pose.position.y = point.positions[1];
+        pose.position.z = point.positions[2];
+        pose.orientation.x = point.positions[3];
+        pose.orientation.y = point.positions[4];
+        pose.orientation.z = point.positions[5];
+        pose.orientation.w = point.positions[6];
 
+        ROS_INFO("Ready to grasp");
+        // set grasp pose as the object position and the orientation of the last point
+        geometry_msgs::Pose grasp_pose;
+        grasp_pose.position.x = object_pose.position.x;
+        grasp_pose.position.y = object_pose.position.y;
+        grasp_pose.position.z = object_pose.position.z;
+        grasp_pose.orientation.x = pose.orientation.x;
+        grasp_pose.orientation.y = pose.orientation.y;
+        grasp_pose.orientation.z = pose.orientation.z;
+        grasp_pose.orientation.w = pose.orientation.w;
 
+        pick_place_gripper_machine.pick(pose,
+                                        grasp_pose,
+                                        planning_frame,
+                                        object_name);
+        // revers plan
+//        std::reverse(plan.trajectory_.joint_trajectory.points.begin(),
+//                     plan.trajectory_.joint_trajectory.points.end());
+//        move_group.execute(plan);
 
-//        while (ros::ok()) {
-//            auto& point = res.trajectory.joint_trajectory.points[pidx];
-//            // If using moveit_collision_checker we cant use the following at the moment
-////            auto markers = cc.getCollisionRobotVisualization(point.positions);
-////            for (auto& m : markers.markers) {
-////                m.ns = "path_animation";
-////            }
-////            SV_SHOW_INFO(markers);
-//            std::this_thread::sleep_for(std::chrono::milliseconds(200));
-//            pidx++;
-//            pidx %= res.trajectory.joint_trajectory.points.size();
-//        }
     }
 
     return 0;

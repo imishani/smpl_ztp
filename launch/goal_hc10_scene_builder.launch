@@ -49,7 +49,7 @@
             kinematics_frame:
                 $(arg arm_id)base_link
             chain_tip_link:
-                arm_1tool0
+                arm_1TCP
             <!--                $(arg arm_id)tool0-->
         </rosparam>
 

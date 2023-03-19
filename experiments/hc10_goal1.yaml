@@ -1,4 +1,5 @@
 arm: "manipulator_1"
+gripper: "gripper_1"
 
 initial_configuration:
   joint_state:
@@ -9,7 +10,7 @@ initial_configuration:
     - { name: arm_1joint_5_b,     position: 0.0 }
     - { name: arm_1joint_6_t,   position: 0.0 } # 0.0s
 
-pick: false
+pick: true
 
 grasp_object:
   name: "part_c1_3"
@@ -17,12 +18,12 @@ grasp_object:
     position:
       x: 0.0
       y: 0.17
-      z: 0.0
+      z: 0.1
     orientation:       # 180 degree rotation about the x-axis
-      x: 1.0
-      y: 0.0
-      z: 0.0
-      w: 0.0
+      x: -0.5
+      y: 0.5
+      z: 0.5
+      w: 0.5
 
 goal:
   x: 0.8
