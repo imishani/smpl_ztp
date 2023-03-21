@@ -13,12 +13,12 @@ initial_configuration:
 pick: true
 
 grasp_object:
-  name: "part_c1_3"
+  name: "part_c1_2"
   relative_pose:  # From robot tool0 to object
     position:
       x: 0.0
       y: 0.17
-      z: 0.1
+      z: 0.0
     orientation:       # 180 degree rotation about the x-axis
       x: -0.5
       y: 0.5
@@ -29,7 +29,7 @@ goal:
   x: 0.8
   y: 0.0
   z: 0.85
-  roll: -1.570796
+  roll: 0.0
   pitch: 0.0 #1.570796
-  yaw: -1.570796
+  yaw: 0.0
 

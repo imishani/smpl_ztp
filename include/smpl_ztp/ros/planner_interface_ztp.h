@@ -166,6 +166,8 @@ public:
         GoalConstraint& goal);
     ///@}
 
+    void profilePath(trajectory_msgs::JointTrajectory& traj, bool use_moveit=false) const;
+
 protected:
 
     RobotModel* m_robot;
@@ -256,7 +258,6 @@ protected:
         const std::string& joint_state_frame,
         const std::string& multi_dof_joint_state_frame,
         moveit_msgs::RobotTrajectory& traj) const;
-    void profilePath(trajectory_msgs::JointTrajectory& traj, bool use_moveit=false) const;
     void removeZeroDurationSegments(trajectory_msgs::JointTrajectory& traj) const;
 
     bool writePath(
