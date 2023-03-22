@@ -11,9 +11,10 @@ initial_configuration:
     - { name: arm_1joint_6_t,   position: 0.0 } # 0.0s
 
 pick: true
+place: true
 
 grasp_object:
-  name: "part_c1_2"
+  name: "part_c2"
   relative_pose:  # From robot tool0 to object
     position:
       x: 0.0

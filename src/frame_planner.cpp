@@ -165,9 +165,173 @@ public:
 //        move_group_.setSupportSurfaceName("table");
         ROS_INFO("Picking object %s", object_id.c_str());
         ROS_INFO_STREAM("Move group: " << move_group_->getName());
-        auto move_group_test = moveit::planning_interface::MoveGroupInterface("manipulator_1");
-//        move_group_->pick(object_id, grasps);
-        move_group_test.pick(object_id, grasps);
+        move_group_->pick(object_id, grasps);
+    }
+
+    void place(
+            const std::string& object_id,
+            const std::vector<double>& pose,
+            const std::string& frame_id)
+    {
+        ROS_INFO("Placing object %s", object_id.c_str());
+        geometry_msgs::PoseStamped place_pose;
+        place_pose.header.frame_id = frame_id;
+        place_pose.pose.position.x = pose[0];
+        place_pose.pose.position.y = pose[1];
+        place_pose.pose.position.z = pose[2];
+        place_pose.pose.orientation.x = pose[3];
+        place_pose.pose.orientation.y = pose[4];
+        place_pose.pose.orientation.z = pose[5];
+        place_pose.pose.orientation.w = pose[6];
+
+        std::vector<moveit_msgs::PlaceLocation> place_location;
+        place_location.resize(1);
+        place_location[0].place_pose = place_pose;
+        place_location[0].pre_place_approach.direction.header.frame_id = frame_id;
+        place_location[0].pre_place_approach.min_distance = 0.095;
+        place_location[0].pre_place_approach.desired_distance = 0.115;
+        place_location[0].pre_place_approach.direction.vector.z = 1.0;
+
+        place_location[0].post_place_retreat.direction.header.frame_id = frame_id;
+        place_location[0].post_place_retreat.direction.vector.z = -1.0;
+        place_location[0].post_place_retreat.min_distance = 0.095;
+        place_location[0].post_place_retreat.desired_distance = 0.115;
+
+        place_location[0].post_place_posture.joint_names.resize(1);
+        std::string joint_name = std::string("arm_") + planning_group_.back() + std::string("robotiq_85_left_knuckle_joint");
+        place_location[0].post_place_posture.joint_names[0] = joint_name;
+        place_location[0].post_place_posture.points.resize(1);
+        place_location[0].post_place_posture.points[0].positions.resize(1);
+        place_location[0].post_place_posture.points[0].positions[0] = move_group_->getNamedTargetValues("open_1")[joint_name];   //&"open_" [ planning_group_.back()]
+        place_location[0].post_place_posture.points[0].time_from_start = ros::Duration(0.5);
+
+        move_group_->place(object_id, place_location);
+    }
+
+    void brutalPick(moveit::planning_interface::MoveGroupInterface& group_,
+                    geometry_msgs::PoseStamped& grasp_pose_,
+                    std::string& object_name,
+                    moveit::planning_interface::MoveGroupInterface::Plan& plan_,
+                    smpl::PlannerInterface& planner_){
+        group_.clearPathConstraints();
+        group_.clearPoseTargets();
+        // Plan to grasp pose
+        ROS_INFO_STREAM("Plan to grasp pose: " << grasp_pose_);
+        moveit::planning_interface::MoveGroupInterface::Plan plan_grasp;
+        group_.setPoseTarget(grasp_pose_);
+        bool success = (group_.plan(plan_grasp) == moveit::core::MoveItErrorCode::SUCCESS);
+        ROS_INFO("Plan (pose goal) %s", success ? "" : "FAILED");
+        group_.execute(plan_grasp);
+
+        ROS_INFO("Reached grasp pose");
+
+        bool succ = group_.attachObject(object_name, "arm_1TCP");
+        ROS_INFO_STREAM("Attach object: " << std::boolalpha << succ << std::endl);
+        group_.setStartStateToCurrentState();
+
+        group_.clearPathConstraints();
+        group_.clearPoseTargets();
+        // Reverse both plans
+        ROS_INFO("Reverse both plans");
+
+        std::reverse(plan_.trajectory_.joint_trajectory.points.begin(),
+                     plan_.trajectory_.joint_trajectory.points.end());
+        std::reverse(plan_grasp.trajectory_.joint_trajectory.points.begin(),
+                     plan_grasp.trajectory_.joint_trajectory.points.end());
+
+        // Delete all calculated velocities and accelerations
+        for (int i = 0; i < plan_.trajectory_.joint_trajectory.points.size(); i++){
+            plan_.trajectory_.joint_trajectory.points[i].velocities.clear();
+            plan_.trajectory_.joint_trajectory.points[i].accelerations.clear();
+        }
+        for (int i = 0; i < plan_grasp.trajectory_.joint_trajectory.points.size(); i++){
+            plan_grasp.trajectory_.joint_trajectory.points[i].velocities.clear();
+            plan_grasp.trajectory_.joint_trajectory.points[i].accelerations.clear();
+        }
+
+        // Concatenate the two plans where the reversed plan_grasp is the first one
+        ROS_INFO("Concatenate the two plans");
+        ROS_INFO_STREAM("Plan size: " << plan_.trajectory_.joint_trajectory.points.size());
+        plan_.trajectory_.joint_trajectory.points.insert(plan_.trajectory_.joint_trajectory.points.begin(),
+                                                        plan_grasp.trajectory_.joint_trajectory.points.begin(),
+                                                        plan_grasp.trajectory_.joint_trajectory.points.end());
+
+//        moveit_msgs::RobotTrajectory trajectory;
+//        trajectory.joint_trajectory.points.resize(plan_.trajectory_.joint_trajectory.points.size());
+//        for (int i = 0; i < plan_.trajectory_.joint_trajectory.points.size(); i++){
+//            trajectory.joint_trajectory.points[i].positions = plan_.trajectory_.joint_trajectory.points[i].positions;
+//        }
+//        trajectory.joint_trajectory.header.seq = 0;
+//        trajectory.joint_trajectory.header.stamp = ros::Time::now();
+//        trajectory.joint_trajectory.header.frame_id = "world";
+        ROS_INFO_STREAM("Plan size: " << plan_.trajectory_.joint_trajectory.points.size());
+        // Re-profile the trajectory
+        ROS_INFO("Re-profile the trajectory");
+        moveit::planning_interface::MoveGroupInterface::Plan concat_plan;
+        concat_plan.trajectory_.joint_trajectory = plan_.trajectory_.joint_trajectory;
+        // Print the trajectory
+//        ROS_INFO("Print the trajectory");
+//        for (auto& point_ : concat_plan.trajectory_.joint_trajectory.points) {
+//            ROS_INFO_STREAM(point_);
+//        }
+        ROS_INFO("Profile the trajectory");
+        planner_.profilePath(concat_plan.trajectory_.joint_trajectory, true);
+        // Execute the trajectory
+        ROS_INFO("Execute the trajectory");
+        group_.execute(concat_plan);
+    }
+
+    void brutalPlace(moveit::planning_interface::MoveGroupInterface& group_,
+                     geometry_msgs::PoseStamped& place_pose_,
+                     std::string& object_name,
+                     moveit::planning_interface::MoveGroupInterface::Plan& plan_,
+                     smpl::PlannerInterface& planner_){
+        // Clean the group_ plan
+        group_.clearPathConstraints();
+        group_.clearPoseTargets();
+
+        // Plan to place pose
+        ROS_INFO_STREAM("Plan to place pose: " << place_pose_);
+        moveit::planning_interface::MoveGroupInterface::Plan plan_place;
+        group_.setPoseTarget(place_pose_);
+        bool success = (group_.plan(plan_place) == moveit::core::MoveItErrorCode::SUCCESS);
+        ROS_INFO("Plan (pose goal) %s", success ? "" : "FAILED");
+        group_.execute(plan_place);
+
+        ROS_INFO("Reached place pose");
+
+        bool succ = group_.detachObject(object_name);
+        ROS_INFO_STREAM("Detach object: " << std::boolalpha << succ << std::endl);
+        group_.setStartStateToCurrentState();
+        group_.clearPathConstraints();
+        group_.clearPoseTargets();
+        // Reverse both plans
+        ROS_INFO("Reverse both plans");
+        std::reverse(plan_.trajectory_.joint_trajectory.points.begin(),
+                     plan_.trajectory_.joint_trajectory.points.end());
+        std::reverse(plan_place.trajectory_.joint_trajectory.points.begin(),
+                     plan_place.trajectory_.joint_trajectory.points.end());
+
+        // Concatenate the two plans where the reversed plan_place is the first one
+        ROS_INFO("Concatenate the two plans");
+        plan_.trajectory_.joint_trajectory.points.insert(plan_.trajectory_.joint_trajectory.points.begin(),
+                                                        plan_place.trajectory_.joint_trajectory.points.begin(),
+                                                        plan_place.trajectory_.joint_trajectory.points.end());
+
+        // Re-profile the trajectory
+        ROS_INFO("Re-profile the trajectory");
+        moveit::planning_interface::MoveGroupInterface::Plan concat_plan;
+        concat_plan.trajectory_.joint_trajectory = plan_.trajectory_.joint_trajectory;
+        // Print the trajectory
+//        ROS_INFO("Print the trajectory");
+//        for (auto& point_ : concat_plan.trajectory_.joint_trajectory.points) {
+//            ROS_INFO_STREAM(point_);
+//        }
+        ROS_INFO("Profile the trajectory");
+        planner_.profilePath(concat_plan.trajectory_.joint_trajectory, true);
+        // Execute the trajectory
+        ROS_INFO("Execute the trajectory");
+        group_.execute(concat_plan);
     }
 
 private:
@@ -804,6 +968,14 @@ int main(int argc, char* argv[])
     // Planning //
     //////////////
     // check if we need to pick (grasp)
+    std::vector<double> place(6, 0);
+    ph.param("goal/x", place[0], 0.0);
+    ph.param("goal/y", place[1], 0.0);
+    ph.param("goal/z", place[2], 0.0);
+    ph.param("goal/roll", place[3], 0.0);
+    ph.param("goal/pitch", place[4], 0.0);
+    ph.param("goal/yaw", place[5], 0.0);
+
     bool pick;
     ph.param("pick", pick, false);
     std::vector<double> goal(6, 0);
@@ -853,12 +1025,7 @@ int main(int argc, char* argv[])
         convertFromRelativePose(rel_pose_msg, object_pose, goal);
     }
     else {
-        ph.param("goal/x", goal[0], 0.0);
-        ph.param("goal/y", goal[1], 0.0);
-        ph.param("goal/z", goal[2], 0.0);
-        ph.param("goal/roll", goal[3], 0.0);
-        ph.param("goal/pitch", goal[4], 0.0);
-        ph.param("goal/yaw", goal[5], 0.0);
+        goal = place;
     }
 
 
@@ -902,7 +1069,26 @@ int main(int argc, char* argv[])
         ROS_ERROR("Failed to plan.");
         return 1;
     }
+    bool place_query;
+    ph.param("place",place_query, false);
+    moveit_msgs::MotionPlanRequest req_place;
+    moveit_msgs::MotionPlanResponse res_place;
+    if (place_query){
+        req_place.allowed_planning_time = 60.0;
+        req_place.goal_constraints.resize(1);
+        FillGoalConstraint(place, planning_frame, req_place.goal_constraints[0]);
 
+        req_place.group_name = robot_config.group_name;
+        req_place.max_acceleration_scaling_factor = 1.0;
+        req_place.max_velocity_scaling_factor = 1.0;
+        req_place.num_planning_attempts = 1;
+        req_place.planner_id = "arastar.workspace_distance.workspace";
+        req_place.start_state = start_state;
+        if (!planner.solveZero(planning_scene, req_place, res_place, query, random_query)) {
+            ROS_ERROR("Failed to plan.");
+            return 1;
+        }
+    }
     ///////////////////////////////////
     // Visualizations and Statistics //
     ///////////////////////////////////
@@ -925,20 +1111,10 @@ int main(int argc, char* argv[])
         moveit::planning_interface::MoveGroupInterface move_group(robot_config.group_name);
         moveit::planning_interface::MoveGroupInterface::Plan plan;
         plan.trajectory_ = res.trajectory;
-//        ROS_INFO_STREAM(res.planning_time);
-//        ROS_INFO_STREAM(res.trajectory.joint_trajectory.points);
-        // move the robot
 
         move_group.execute(plan);
         ROS_INFO("Reached Pre-grasped pose");
 
-        // move the gripper
-//        pick_place_gripper_machine.closeGripper();
-//        ROS_INFO("Gripper closed");
-//        ros::Duration(1).sleep();
-//        // Open the gripper
-//        pick_place_gripper_machine.openGripper();
-//        ROS_INFO("Gripper opened");
         // pre grasp from trajectory (last point)
         auto& point = res.trajectory.joint_trajectory.points.back();
         // cast to geometry_msgs::Pose
@@ -956,77 +1132,39 @@ int main(int argc, char* argv[])
         // get current pose of the arm
         geometry_msgs::PoseStamped grasp_pose = move_group.getCurrentPose();
         grasp_pose.pose.position.z -= 0.12;
-//        geometry_msgs::Pose grasp_pose;
-//        grasp_pose.position.x = object_pose.position.x;
-//        grasp_pose.position.y = object_pose.position.y;
-//        grasp_pose.position.z = object_pose.position.z;
-//        grasp_pose.orientation.x = pose.orientation.x;
-//        grasp_pose.orientation.y = pose.orientation.y;
-//        grasp_pose.orientation.z = pose.orientation.z;
-//        grasp_pose.orientation.w = pose.orientation.w;
 
+        // TODO: Fix this!!! I want to use the classic method of picking anf placing
 //        pick_place_gripper_machine.pick(pose,
 //                                        grasp_pose,
 //                                        planning_frame,
 //                                        object_name);
-        // Plan to grasp pose
-        ROS_INFO_STREAM("Plan to grasp pose: " << grasp_pose);
-        moveit::planning_interface::MoveGroupInterface::Plan plan_grasp;
-        move_group.setPoseTarget(grasp_pose);
-        bool success = (move_group.plan(plan_grasp) == moveit::core::MoveItErrorCode::SUCCESS);
-        ROS_INFO("Plan (pose goal) %s", success ? "" : "FAILED");
-        move_group.execute(plan_grasp);
 
-//        moveit_msgs::RobotTrajectory plan_grasp;
-//        const double jump_threshold = 0.0;
-//        const double eef_step = 0.005;
-//        double fraction = move_group.computeCartesianPath(waypoints, eef_step, jump_threshold, plan_grasp);
-//        move_group.execute(plan_grasp);
-        ROS_INFO("Reached grasp pose");
-//        ros::Duration(1).sleep();
-//        pick_place_gripper_machine.closeGripper();
-//        ROS_INFO("Gripper closed");
-//        // attach object
-//        // look for the object by name in objects:
-//
-        bool succ = move_group.attachObject(object_name, "arm_1TCP");
-        ROS_INFO_STREAM("Attach object: " << std::boolalpha << succ << std::endl);
-        move_group.setStartStateToCurrentState();
-//        ros::Duration(1).sleep();
-        // reverse plan
-//        ROS_INFO("Plan to pre-grasp pose");
-//        moveit::planning_interface::MoveGroupInterface::Plan plan_pre_grasp;
-//        move_group.setPoseTarget(pose);
-//        success = (move_group.plan(plan_pre_grasp) == moveit::core::MoveItErrorCode::SUCCESS);
+        pick_place_gripper_machine.brutalPick(move_group,
+                                              grasp_pose,
+                                              object_name,
+                                              plan,
+                                              planner);
 
-        // Reverse both plans
-        ROS_INFO("Reverse both plans");
-        std::reverse(plan.trajectory_.joint_trajectory.points.begin(),
-                     plan.trajectory_.joint_trajectory.points.end());
-        std::reverse(plan_grasp.trajectory_.joint_trajectory.points.begin(),
-                     plan_grasp.trajectory_.joint_trajectory.points.end());
+        ROS_INFO("Grasped object and returned to start pose");
 
-        // Concatenate the two plans where the reversed plan_grasp is the first one
-        ROS_INFO("Concatenate the two plans");
-        plan.trajectory_.joint_trajectory.points.insert(plan.trajectory_.joint_trajectory.points.begin(),
-                                                        plan_grasp.trajectory_.joint_trajectory.points.begin(),
-                                                        plan_grasp.trajectory_.joint_trajectory.points.end());
+        if (place_query) {
+            ROS_INFO("Ready to place");
+            moveit::planning_interface::MoveGroupInterface::Plan plan_place;
+            plan_place.trajectory_ = res_place.trajectory;
+            move_group.execute(plan_place);
+            ROS_INFO("Reached Pre-placed pose");
+            ROS_INFO("Ready to place");
 
-        // Re-profile the trajectory
-        ROS_INFO("Re-profile the trajectory");
-        moveit::planning_interface::MoveGroupInterface::Plan plan_;
-        plan_.trajectory_.joint_trajectory = plan.trajectory_.joint_trajectory;
-        // Print the trajectory
-        ROS_INFO("Print the trajectory");
-        for (auto& point_ : plan_.trajectory_.joint_trajectory.points) {
-            ROS_INFO_STREAM(point_);
+            geometry_msgs::PoseStamped place_pose = move_group.getCurrentPose();
+            place_pose.pose.position.z -= 0.05;
+
+            pick_place_gripper_machine.brutalPlace(move_group,
+                                             place_pose,
+                                             object_name,
+                                             plan_place,
+                                             planner);
         }
-        ROS_INFO("Profile the trajectory");
-        planner.profilePath(plan_.trajectory_.joint_trajectory, true);
-        // Execute the trajectory
-        ROS_INFO("Execute the trajectory");
-        move_group.execute(plan_);
-
+        ROS_INFO("Placed object and returned to start pose");
     }
 //    spinner.stop();
     ros::shutdown();
