@@ -407,8 +407,7 @@ auto SetupKDLRobotModel(const std::string& urdf, const RobotModelConfig &config)
 }
 
 auto SetupMoveItRobotModel(const std::string& urdf, const RobotModelConfig &config,
-                           std::shared_ptr<moveit::core::RobotModel>& robot_model,
-                           std::string group_name = "manipulator_1") // TODO: delete this. We have the group name in config
+                           std::shared_ptr<moveit::core::RobotModel>& robot_model) // TODO: delete this. We have the group name in config
     -> std::unique_ptr<sbpl_interface::MoveItRobotModel>
 {
     std::unique_ptr<sbpl_interface::MoveItRobotModel> rm;
@@ -423,6 +422,7 @@ auto SetupMoveItRobotModel(const std::string& urdf, const RobotModelConfig &conf
 
     ROS_INFO("Initialize UR10 MoveIt Robot Model");
 
+    std::string group_name = config.group_name;
 //    std::vector<std::string> redundant_joints; UR10 has no redundant joints
     auto joint_group = robot_model->getJointModelGroup(group_name);
 
