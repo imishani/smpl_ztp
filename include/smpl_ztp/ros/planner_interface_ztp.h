@@ -65,6 +65,7 @@
 
 
 
+
 SBPL_CLASS_FORWARD(SBPLPlanner);
 
 namespace smpl {

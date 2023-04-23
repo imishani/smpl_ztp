@@ -20,6 +20,7 @@
 <!--    <depend>smpl_moveit_interface</depend>-->
     <depend>moveit_ros_planning</depend>
     <depend>moveit_ros_planning_interface</depend>
+    <depend>chomp_motion_planner</depend>
     <depend>trajectory_msgs</depend>
     <depend>moveit_msgs</depend>
     <depend>scene_builder</depend>

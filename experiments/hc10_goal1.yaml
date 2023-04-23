@@ -10,7 +10,7 @@ initial_configuration:
     - { name: arm_1joint_5_b,     position: 0.0 }
     - { name: arm_1joint_6_t,   position: 0.0 } # 0.0s
 
-pick: true
+pick: false
 place: true
 
 grasp_object:

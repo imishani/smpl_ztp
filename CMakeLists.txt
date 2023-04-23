@@ -27,6 +27,7 @@ find_package(
         sbpl_collision_checking
         moveit_ros_planning
         moveit_ros_planning_interface
+        chomp_motion_planner
         trajectory_msgs
         moveit_msgs
         scene_builder
@@ -66,7 +67,8 @@ add_library(
     src/search/arastar_zero.cpp
     src/ros/zero_time_planner.cpp
     src/planner/moveit_robot_model.cpp
-    src/ros/moveit_collision_interface.cpp)
+    src/ros/moveit_collision_interface.cpp
+    )
 
 target_compile_options(smpl_ztp PUBLIC -std=c++11)
 
@@ -93,7 +95,14 @@ add_executable(call_planner_ztp src/call_planner.cpp
                                 )    # src/ros/planner_interface.cpp
 
 add_executable(${PROJECT_NAME}_frame src/frame_planner.cpp
-        src/ros/planner_interface.cpp src/collision_space_scene_moveit.cpp src/ros/moveit_collision_interface.cpp)
+        src/ros/planner_interface.cpp
+        src/collision_space_scene_moveit.cpp
+        src/ros/moveit_collision_interface.cpp)
+
+add_executable(${PROJECT_NAME}_trajOpt src/trajOpt_planner.cpp
+        src/ros/planner_interface.cpp
+        src/collision_space_scene_moveit.cpp
+        src/ros/moveit_collision_interface.cpp)
 
 target_compile_options(smpl_ztp PUBLIC -std=c++11)
 
@@ -121,6 +130,21 @@ target_link_libraries(${PROJECT_NAME}_frame PRIVATE ${catkin_LIBRARIES})
 target_link_libraries(${PROJECT_NAME}_frame PRIVATE ${SBPL_LIBRARIES})
 target_link_libraries(${PROJECT_NAME}_frame PRIVATE ${Boost_LIBRARIES})
 target_link_libraries(${PROJECT_NAME}_frame PRIVATE ${scene_builder_LIBRARIES})
+
+# Target for trajOpt planner
+target_include_directories(${PROJECT_NAME}_trajOpt PRIVATE include)
+target_include_directories(${PROJECT_NAME}_trajOpt SYSTEM PRIVATE ${catkin_INCLUDE_DIRS})
+target_include_directories(${PROJECT_NAME}_trajOpt SYSTEM PRIVATE ${Boost_INCLUDE_DIRS})
+target_include_directories(${PROJECT_NAME}_trajOpt SYSTEM PRIVATE ${EIGEN3_INCLUDE_DIR})
+target_include_directories(${PROJECT_NAME}_trajOpt SYSTEM PRIVATE ${SBPL_INCLUDE_DIRS})
+target_include_directories(${PROJECT_NAME}_trajOpt SYSTEM PRIVATE ${scene_builder_INCLUDE_DIRS})
+
+target_link_libraries(${PROJECT_NAME}_trajOpt PRIVATE smpl_ztp)
+target_link_libraries(${PROJECT_NAME}_trajOpt PRIVATE ${catkin_LIBRARIES})
+target_link_libraries(${PROJECT_NAME}_trajOpt PRIVATE ${SBPL_LIBRARIES})
+target_link_libraries(${PROJECT_NAME}_trajOpt PRIVATE ${Boost_LIBRARIES})
+target_link_libraries(${PROJECT_NAME}_trajOpt PRIVATE ${scene_builder_LIBRARIES})
+
 
 ############################
 # Install smpl_ztp library #

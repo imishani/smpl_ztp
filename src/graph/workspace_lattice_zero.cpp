@@ -600,8 +600,8 @@ int WorkspaceLatticeZero::FindRegionContainingState_WS(const WorkspaceState& ws_
             }
             dsum = std::sqrt(dsum);
         }
-        SMPL_DEBUG_STREAM_NAMED("graph.expands", "    query state:     " << ws_state);
-        SMPL_DEBUG_STREAM_NAMED("graph.expands", "    attractor state: " << r.state);
+//        SMPL_DEBUG_STREAM_NAMED("graph.expands", "    query state:     " << ws_state);
+//        SMPL_DEBUG_STREAM_NAMED("graph.expands", "    attractor state: " << r.state);
 //        SMPL_INFO_STREAM_NAMED("graph.expands", "    query state:     " << ws_state);
 //        SMPL_INFO_STREAM_NAMED("graph.expands", "    attractor state: " << r.state);
 //        SMPL_INFO_STREAM_NAMED("graph.expands", "    region radius: " << r.radius);
@@ -956,7 +956,7 @@ bool WorkspaceLatticeZero::extractPath(
                 assert(goal_state->state.size() == robot()->jointVariableCount());
                 best_cost = 30; // Hardcoded primitive value in GetSuccs
                 ROS_INFO_STREAM("Goal state found: " << goal_state->coord << "   " << goal_state->state);
-                ROS_INFO_STREAM("Goal from field: " << m_goal_entry->coord << "   " << m_goal_entry->state);
+//                ROS_INFO_STREAM("Goal from field: " << m_goal_entry->coord << "   " << m_goal_entry->state);
                 best_goal_entry = goal_state;
                 break;
             }

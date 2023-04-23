@@ -54,7 +54,15 @@
 #include <moveit/robot_trajectory/robot_trajectory.h>
 // trajectory_processing::IterativeParabolicTimeParameterization
 #include <moveit/trajectory_processing/iterative_time_parameterization.h>
-
+// include planning scene
+#include <moveit/planning_scene/planning_scene.h>
+// include planning scene monitor
+#include <moveit/planning_scene_monitor/planning_scene_monitor.h>
+// include CHOMP
+#include <chomp_motion_planner/chomp_optimizer.h>
+#include <chomp_motion_planner/chomp_trajectory.h>
+#include <chomp_motion_planner/chomp_parameters.h>
+#include <chomp_motion_planner/chomp_planner.h>
 
 // project includes
 #include <smpl/angles.h>
@@ -660,11 +668,48 @@ bool PlannerInterface::solveZero(
         m_res = res; // record the last result
     }
     else {
-        int num_queries = 1;
+        int num_queries = 50;
         double total_time = 0.0;
         double best_time = 10000.0;
         double worst_time = 0.0;
+        std::vector<double> times;
+        std::vector<int> failes;
+        std::vector<GoalConstraintZTP> goals;
         ROS_INFO("Going to run %d random queries", num_queries);
+
+        std::shared_ptr<planning_scene_monitor::PlanningSceneMonitor> mPlanningSceneMonitor = std::make_shared<planning_scene_monitor::PlanningSceneMonitor>("robot_description");
+        mPlanningSceneMonitor->startSceneMonitor();
+        mPlanningSceneMonitor->startStateMonitor();
+        mPlanningSceneMonitor->startWorldGeometryMonitor();
+        mPlanningSceneMonitor->requestPlanningSceneState();
+        ros::Duration(1.0).sleep();
+        auto planning_scene_checker = mPlanningSceneMonitor->getPlanningScene();
+        // get current state
+        robot_state::RobotState current_state = planning_scene_checker->getCurrentState();
+        // print all collision objects:
+        std::vector<std::string> names = planning_scene_checker->getWorld()->getObjectIds();
+        ROS_INFO("There are %d collision objects in the world", (int)names.size());
+
+        // initialize TrajOpt planner
+        ROS_INFO("Initializing CHOMP planner");
+        auto* params = new chomp::ChompParameters();
+        params->collision_threshold_ = 0.01; params->learning_rate_ = 0.01;
+        params->max_iterations_ = 100; params->obstacle_cost_weight_ = 1.0;
+        params->enable_failure_recovery_ = true; params->planning_time_limit_ = 2.0;
+        params->trajectory_initialization_method_ = "quintic-spline";
+        chomp::ChompPlanner chomp_planner;
+        // create a motion plan request and a motion plan response
+        moveit_msgs::MotionPlanRequest req_chomp;
+        planning_interface::MotionPlanDetailedResponse res_chomp;
+        // set the planning group
+        req_chomp.group_name = req.group_name;
+        // set the planner id
+        req_chomp.planner_id = "CHOMP";
+        // set the planning time
+        req_chomp.allowed_planning_time = 2.0;
+        // set the planning scene
+        req_chomp.workspace_parameters = req.workspace_parameters;
+
 
         for (int i = 0; i < num_queries; ++i) {
             ROS_INFO("\n************* QUERY %d ***************", i);
@@ -678,17 +723,105 @@ bool PlannerInterface::solveZero(
 
             ROS_INFO_STREAM("Goal ws state: \n" << "Translation:" << goal.ws_state[0] << " " << goal.ws_state[1] << " " << goal.ws_state[2]);
             ROS_INFO_STREAM("Rotation:" << goal.ws_state[3] << " " << goal.ws_state[4] << " " << goal.ws_state[5]);
-
+            goals.push_back(goal);
+            path.clear();
             auto now = clock::now();
-            m_zero_planner->Query(path);
+            m_zero_planner->GraspQuery(path);
+            if (path.empty()){
+                ROS_INFO("Failed to find a path");
+                failes.push_back(i);
+                continue;
+            }
+            else{
+                // check if the path is valid
+                bool failure = false;
+                for (size_t j {0}; j < path.size() ; ++j){
+                    std::vector<double> state = path[j];
+                    current_state.setJointGroupPositions("manipulator_1", state);
+                    current_state.update();
+                    if (!planning_scene_checker->isStateValid(current_state)){
+                        ROS_INFO("Found an invalid path");
+                        // look for the next valid state and ust TrajOpt to interpolate
+                        size_t k = j;
+                        while (!planning_scene_checker->isStateValid(current_state) && k < path.size()){
+                            current_state.setJointGroupPositions("manipulator_1", path[k]);
+                            current_state.update();
+                            k++;
+                        }
+                        if (k == path.size()){
+                            ROS_INFO("Failed to find a valid path");
+                            failes.push_back(i);
+                            failure = true;
+                            break;
+                        }
+                        else{
+                            // call TrajOpt to interpolate between j and k
+                            ROS_INFO("Trajectory Optimization between %zu and %zu", j, k);
+                            std::vector<double> start_state = path[j];
+                            std::vector<double> end_state = path[k];
+                            // fill the joint names for the start state and goal state using the req
+                            ROS_INFO("Updating the joint names 1");
+                            req_chomp.start_state.joint_state.name.clear();
+                            req_chomp.goal_constraints.clear();
+                            // create an empty goal constraint
+                            moveit_msgs::Constraints goal_constraint;
+                            goal_constraint.joint_constraints.resize(6);
+                            req_chomp.goal_constraints.push_back(goal_constraint);
+                            // get the joint_names of the group
+                            std::vector<std::string> joint_names = planning_scene_checker->getRobotModel()->getJointModelGroup(req.group_name)->getActiveJointModelNames();
+                            ROS_INFO("Updating the joint names");
+                            for (int ang = 0; ang < 6; ++ang) {
+                                req_chomp.start_state.joint_state.name.push_back(joint_names[ang]);
+                                req_chomp.goal_constraints[0].joint_constraints[ang].joint_name = joint_names[ang];
+                            }
+                            ROS_INFO("Updating the joint positions");
+                            req_chomp.start_state.joint_state.position.resize(6);
+                            req_chomp.goal_constraints[0].joint_constraints.resize(6);
+                            for (int ang = 0; ang < 6; ++ang) {
+                                req_chomp.start_state.joint_state.position[ang] = start_state[ang];
+                                req_chomp.goal_constraints[0].joint_constraints[ang].position = end_state[ang];
+                            }
+                            ROS_INFO("Clearing the response");
+                            res_chomp.trajectory_.clear();
+                            // call the planner
+                            ROS_INFO("Calling the planner");
+                            chomp_planner.solve(planning_scene_checker, req_chomp, *params, res_chomp);
+                            ROS_INFO("Done calling the planner");
+                            // check if succeeded
+                            if (res_chomp.error_code_.val != res_chomp.error_code_.SUCCESS){
+                                ROS_INFO("TrajOpt failed to find a valid path");
+                                failes.push_back(i);
+                                failure = true;
+                                break;
+                            }
+                            // add the interpolated path to the original path
+                            std::vector<std::vector<double>> interpolated_path;
+                            for (int p = 0; p < res_chomp.trajectory_.size(); ++p){
+                                std::vector<double> point;
+                                for (int waypoint {0}; waypoint < res_chomp.trajectory_[p]->getWayPointCount(); ++waypoint){
+                                    res_chomp.trajectory_[p]->getWayPoint(waypoint).copyJointGroupPositions("manipulator_1", point);
+                                    interpolated_path.push_back(point);
+                                }
+                            }
+                            path.erase(path.begin() + j, path.begin() + k);
+                            path.insert(path.begin() + j, interpolated_path.begin(), interpolated_path.end());
+                        }
+//                        failes.push_back(i);
+//                        failure = true;
+//                        break;
+                    }
+                }
+                if (failure)
+                    continue;
+            }
             res.planning_time = to_seconds(clock::now() - now);
-
             if (res.planning_time < best_time)
                 best_time = res.planning_time;
             if (res.planning_time > worst_time)
                 worst_time = res.planning_time;
 
             total_time += res.planning_time;
+            times.push_back(res.planning_time);
             ROS_INFO("ZTP query time: %f", res.planning_time);
             // postProcessPath(path);
             SV_SHOW_INFO_NAMED("trajectory", makePathVisualization(path));
@@ -707,6 +840,50 @@ bool PlannerInterface::solveZero(
             res.trajectory.joint_trajectory.header.seq = 0;
             res.trajectory.joint_trajectory.header.stamp = ros::Time::now();
 
+            // use chomp to post process
+//            auto* params = new chomp::ChompParameters();
+//            params->collision_threshold_ = 0.01;
+//            params->learning_rate_ = 0.01;
+//            params->max_iterations_ = 100;
+//            params->obstacle_cost_weight_ = 1.0;
+//            params->enable_failure_recovery_ = true;
+//            params->planning_time_limit_ = 2.0;
+//            params->trajectory_initialization_method_ = "fillTrajectory";
+//            ROS_INFO("Start post processing");
+//            // get the first point in the trajectory and make it start state as moveit::core::RobotState
+//            robot_state::RobotState start_state = planning_scene_checker->getCurrentState();
+//            ROS_INFO("Step 1");
+//            std::vector<double> start_joint_values;
+//
+//            auto robot_model = mPlanningSceneMonitor->getRobotModel();
+//
+//            auto* trajectory = new chomp::ChompTrajectory(robot_model, 5.0,
+//                                                          0.1, "manipulator_1");
+//
+//            robot_trajectory::RobotTrajectory traj (mPlanningSceneMonitor->getRobotModel());
+//            traj.setRobotTrajectoryMsg(start_state, res.trajectory);
+////            trajectory->fillInFromTrajectory(traj);
+//
+//            chomp::ChompOptimizer optimizer(trajectory,
+//                                            planning_scene_checker,
+//                                            "manipulator_1", params, start_state);
+//            // give the trajectory to the optimizer
+//
+//            // print initial trajectory
+//            ROS_INFO("Initial trajectory:");
+//            for (int i = 0; i < trajectory->getNumPoints(); ++i){
+//                ROS_INFO_STREAM("Point " << i << ": " << trajectory->getTrajectoryPoint(i));
+//            }
+//            optimizer.optimize();
+//
+////            traj.getRobotTrajectoryMsg(res.trajectory);
+//            // print optimized trajectory
+//            ROS_INFO("Optimized trajectory:");
+//            for (int i = 0; i < trajectory->getNumPoints(); ++i){
+//                ROS_INFO_STREAM("Point " << i << ": " << trajectory->getTrajectoryPoint(i));
+//            }
+
+
             if (!m_params.plan_output_dir.empty()) {
                 writePath(res.trajectory_start, res.trajectory);
             }
@@ -718,11 +895,38 @@ bool PlannerInterface::solveZero(
             // getchar();
         }
         double mean_time = total_time/num_queries;
+        double std_time = 0.0;
+        for (double time : times) {
+            std_time += (time - mean_time)*(time - mean_time);
+        }
+        std_time = std::sqrt(std_time/(double)times.size());
         ROS_INFO("Mean planning time: %f", mean_time);
+        ROS_INFO("Std planning time: %f", std_time);
         ROS_INFO("Worst planning time: %f", worst_time);
         ROS_INFO("Best planning time: %f", best_time);
+        ROS_INFO("Failed queries: %zu", failes.size());
+        for (int i : failes) {
+            ROS_INFO("Failed query %d", i);
+        }
+        if (!goals.empty()){
+            // save all the goals
+            std::ofstream goal_file;
+            // get current package path
+            std::string package_path = ros::package::getPath("smpl_ztp");
+            std::string goal_path = package_path + "/src/data/goals.txt";
+
+            goal_file.open(goal_path);
+            for (auto& goal_ : goals) {
+                goal_file << goal_.angles[0] << " " <<
+                          goal_.angles[1] << " " << goal_.angles[2] <<
+                          " " << goal_.angles[3] << " " << goal_.angles[4] <<
+                          " " << goal_.angles[5] << "\n";
+            }
+        }
     }
     // TODO: check these things. Something here crashes
+
+    std::cout << "Releasing memory" << std::endl;
     bfs_heuristic.release();    //avoid crash
     wd_heuristic.release();     //avoid crash
     task_space.release();   //avoid crash
